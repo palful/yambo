@@ -16,7 +16,7 @@ module mod_com2y
  logical :: force_noSYMM
  logical :: artificial_spin_pol
  logical :: verboseIO
- logical :: write_Vloc_Vnl
+ logical :: force_noPseudo
  !
  integer :: ng_vec_abinit, wf_nb_io_user
  !
@@ -48,7 +48,7 @@ module mod_com2y
      force_noWFs          =index(in_string,'nowf')>0
      artificial_spin_pol  =index(in_string,'dupl')>0
      verboseIO            =index(in_string,'verb')>0
-     write_Vloc_Vnl       =index(in_string,'pseu')>0
+     force_noPseudo       =index(in_string,'nops')>0
      !
      alat_mult_factor=1.
      wf_nb_io_user=0
@@ -81,19 +81,16 @@ module mod_com2y
      !
      mag_syms=.false.
      inv_index=-1
-     if(present(t_rev).and.present(trevsym)) then
-       i_time_rev=0
-       if(trevsym) i_time_rev=1
-       if(any(t_rev(:)==1)) then
-         mag_syms=.true.
-         i_time_rev=1
-       endif
-       double_symmetries=.not.mag_syms
-     else
-       i_time_rev=1
-       if(l_spin_orbit.and.n_spin_den==4) i_time_rev=0
-       double_symmetries=(i_time_rev==1)
+     !
+     i_time_rev=1
+     if (present(trevsym)) then
+       if(     trevsym) i_time_rev=1
+       if(.not.trevsym) i_time_rev=0
      endif
+     if(any(t_rev(:)==1)) mag_syms=.true.
+     !
+     double_symmetries=.not.mag_syms
+     if (mag_syms) i_time_rev=1
      !
      ! Space Invertion (possible only for v >= 3.0.4)
      !
@@ -196,8 +193,8 @@ module mod_com2y
      is_spatial=0
      is_trev=0
      do is=1,nsym_
+       ! I need to reorder the symmetries
        if(mag_syms) then
-         ! PWscf: I need to reorder the symmetries
          if(t_rev(is)==0) then
            is_spatial=is_spatial+1
            is_yambo=is_spatial
