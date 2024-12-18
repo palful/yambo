@@ -35,7 +35,8 @@ subroutine RT_start_and_restart(E,k,q)
 &                         RT_P,RT_step,dG_lesser,NE_i_time,RT_dyn_step,&
 &                         Gr_kind,l_RT_is_WFfree,RT_TIME_status,RTibz,&
 &                         RT_nk,G_lesser,RT_eh_en,G_MEM_steps,RT_bands,&
-&                         NE_time_step_update_jump,l_velocity_gauge_corr
+&                         NE_time_step_update_jump,l_velocity_gauge_corr,&
+&                         RT_P_prev,RT_ind_J_prev
  use RT_lifetimes,   ONLY:RT_life_extrap_times,l_RT_iterative_ELPH_lifetimes
  use fields,         ONLY:A_tot
  use hamiltonian,    ONLY:H_nl_sc,V_hartree_sc,V_xc_sc,E_reference
@@ -49,8 +50,11 @@ subroutine RT_start_and_restart(E,k,q)
  use parallel_m,     ONLY:PAR_G_k_range,PAR_IND_Xk_ibz
  use parallel_int,   ONLY:PP_wait,PP_redux_wait
  use RT_output_m,    ONLY:RT_desc,TIME_STEP_desc,Gr_desc
+#if defined _ELPH
+ use drivers,        ONLY:l_rt_coh_phon
+#endif
  !
-#include<memory.h>
+#include<y_memory.h>
  !
  type(levels)      :: E
  type(bz_samp)     :: k,q
@@ -168,29 +172,29 @@ subroutine RT_start_and_restart(E,k,q)
    call RT_control_free("all")
    call RT_control_alloc("all")
    !
-   YAMBO_FREE(RT_TIME_status)
+   !AMBO_FREE(RT_TIME_status)
    !
    ! I use G_lesser(:,:,:) to reconstruct everything
    ! Note that the databases must be loaded at the RESTART time (NE_time)
    !
    i_db=RT_return_db_ID("G_lesser_RESTART_K_section")
    !
-#if defined _PAR_IO
    call io_control(ACTION=OP_RD_CL,COM=NONE,SEC=(/3/),MODE=DUMP,ID=RT_DB_ID(i_db))
    io_err(i_db)=io_RT_components('G_lesser_RESTART_K_section',RT_DB_ID(i_db))
-#else
-   do ik=PAR_G_k_range(1),PAR_G_k_range(2)
-     IO_ACT=manage_action(OP_IF_START_RD_CL_IF_END,ik,PAR_G_k_range(1),PAR_G_k_range(2))
-     call io_control(ACTION=IO_ACT,COM=NONE,SEC=(/ik+2/),MODE=DUMP,ID=RT_DB_ID(i_db))
-     io_err(i_db)=io_RT_components('G_lesser_RESTART_K_section',RT_DB_ID(i_db))
-   enddo
-#endif
    !
    ! The G_lesser must be now rebuild from the reference (T=0) and latest dG components
    !
    do i_mem=1,G_MEM_steps
      G_lesser(:,:,:,i_mem)=G_lesser_reference(:,:,PAR_G_k_range(1):PAR_G_k_range(2))+dG_lesser(:,:,:,i_mem)
    enddo
+   !
+#if defined _ELPH
+   if(l_rt_coh_phon) then
+     i_db=RT_return_db_ID("OBSERVABLES")
+     call io_control(ACTION=OP_RD_CL,COM=NONE,SEC=(/3/),MODE=DUMP,ID=RT_DB_ID(i_db))
+     call io_RT_components_OBS(RT_DB_ID(i_db),'RESTART')
+   endif
+#endif
    !
 #if defined _ELPH_ITERATIVE
    if (l_RT_iterative_ELPH_lifetimes) then
@@ -321,6 +325,8 @@ subroutine RT_start_and_restart(E,k,q)
      !
      RT_P              =cZERO
      RT_ind_J          =cZERO
+     RT_P_prev         =cZERO
+     RT_ind_J_prev     =cZERO
      !
    end subroutine
    !

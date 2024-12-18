@@ -14,12 +14,12 @@ module P2Ym
  use pars,                  ONLY : lchlen,SP,DP,rZERO
  use electrons,             ONLY : levels
  use R_lattice,             ONLY : bz_samp
- use mod_com2y,             ONLY : verboseIO,write_Vloc_Vnl
+ use mod_com2y,             ONLY : verboseIO,force_noPseudo
  use parallel_m,            ONLY : myid
  use parallel_int,          ONLY : PP_bcast   
  use units,                 ONLY : Da2AU
  ! 
-#include<memory.h>
+#include<y_memory.h>
  !
  character(lchlen) :: index_filename
  character(lchlen) :: dftdata_fmt
@@ -310,7 +310,7 @@ contains
    use D_lattice,   ONLY:n_atoms_species_max,n_atomic_species,n_atoms_species, &
 &                        atom_pos, Z_species,atomic_number,atom_mass,atoms_map
    ! 
-#include<memory.h>
+#include<y_memory.h>
    !
    ! Work Space
    !
@@ -548,7 +548,7 @@ contains
    use D_lattice,   ONLY:alat
    use vec_operate, ONLY:v_is_zero 
    !
-#include<memory.h> 
+#include<y_memory.h> 
    !
    type(bz_samp) :: k
    !
@@ -617,7 +617,7 @@ contains
    use pars,        only: pi
    use R_lattice,   ONLY: b, ng_vec, g_vec
    use D_lattice,   ONLY: alat
-#include<memory.h>
+#include<y_memory.h>
    !
    YAMBO_ALLOC(g_vec,(ng_vec,3)) ! The YAMBO array
    !
@@ -851,8 +851,9 @@ contains
       if (ierr/=0) call errore('qexml_read_xc','IOTK error',abs(ierr))
       !
       if (trim(pw_dft)=="B3LYP") call warning('For a full compatible B3LYP calculation consider to use input_dft=B3LYP-V1R')
-      if (pw_lda_plus_u.and..not.write_Vloc_Vnl) then
-        call error(' DFT+U. Rerun p2y with "-p" flag and use the BareHfromScratch flag for GW runs.')
+      if (pw_lda_plus_u) then
+        if (force_noPseudo) call error(' DFT+U. Rerun p2y without "-p" flag.')
+        call warning(' DFT+U. Use the BareHfromScratch flag in input for GW runs.')
       endif
       GS_xc_FUNCTIONAL = XC_yamboID('pwscf_',pw_func=pw_dft)
       if (GS_xc_FUNCTIONAL.eq.XC_HYB_GGA_XC_GAUPBE*XC_FACTOR) then
@@ -892,8 +893,9 @@ contains
       if (ierr/=0) call errore('qexsd_read_xc','fmt error',abs(ierr))
       !
       if (trim(pw_dft)=="B3LYP") call warning('For a full compatible B3LYP calculation consider to use input_dft=B3LYP-V1R')
-      if (pw_lda_plus_u.and..not.write_Vloc_Vnl) then
-        call error(' DFT+U. Rerun p2y with "-p" flag and use the BareHfromScratch flag for GW runs.')
+      if (pw_lda_plus_u) then
+        if (force_noPseudo) call error(' DFT+U. Rerun p2y without "-p" flag.')
+        call warning(' DFT+U. Use the BareHfromScratch flag in input for GW runs.')
       endif
       GS_xc_FUNCTIONAL = XC_yamboID('pwscf_',pw_func=pw_dft)
       if (GS_xc_FUNCTIONAL.eq.XC_HYB_GGA_XC_GAUPBE*XC_FACTOR) then

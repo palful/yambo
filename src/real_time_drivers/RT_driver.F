@@ -45,7 +45,7 @@ subroutine RT_driver(E,X,k,q,Dip)
  use units,           ONLY:FS2AUT
  use RT_lifetimes,    ONLY:l_initial_equilibrium
  !
-#include<memory.h>
+#include<y_memory.h>
  !
  ! Notice that E is never changed!
  !
@@ -78,6 +78,10 @@ subroutine RT_driver(E,X,k,q,Dip)
  if (l_elphoton_scatt)              sec_title=trim(sec_title)//'+el-photon'
 #if defined _PHEL
 if (l_phel_scatt)                   sec_title=trim(sec_title)//'+ph-el'
+#endif
+ !
+#if !defined _PAR_IO
+ call error("Serial I/O removed from yambo_rt. Parallel I/O is mandatory.")
 #endif
  !
  ! Potential
@@ -175,7 +179,7 @@ if (l_phel_scatt)                   sec_title=trim(sec_title)//'+ph-el'
  !
  ! If I loaded the WFs just to compute HARTREE0 and XC0 I can now free the WFs
  !
- if( (l_use_Hxc_collisions.or.trim(RT_potential)=="IP").and. &
+ if( (l_use_Hxc_collisions.or.index(trim(RT_potential),"IP")>0).and. &
 &    .not.(eval_energy.or.l_velocity_gauge_corr)       .and. &
 &    (COLLISIONS_have_HARTREE.or.index(trim(RT_potential),"HARTREE")==0)        ) then
    !

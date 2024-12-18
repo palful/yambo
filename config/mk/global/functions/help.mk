@@ -23,7 +23,6 @@ define yambo_help
    $(ECHO) -n " [ph-project]    "; for target in $(PH_PROJ); do $(ECHO) -n " $$target" ; done;$(ECHO) ;\
    $(ECHO) -n " [rt-project]    "; for target in $(RT_PROJ); do $(ECHO) -n " $$target" ; done;$(ECHO) ;\
    $(ECHO) -n " [nl-project]    "; for target in $(NL_PROJ); do $(ECHO) -n " $$target" ; done;$(ECHO) ;\
-   $(ECHO) -n " [mod-project]   "; for target in $(MOD_PROJ); do $(ECHO) -n " $$target" ; done;$(ECHO) ;\
    $(ECHO) "\n *** Libraries ***"; \
    $(ECHO) -n " [libs]           int-libs ext-libs download";$(ECHO) ;\
    $(ECHO) -n " [int-libs]      "; for target in $(INT_LIBS); do $(ECHO) -n " $$target" ; done;$(ECHO) ;\
@@ -35,10 +34,10 @@ define yambo_help
    $(ECHO)  " make check-packages      =  check the packages required (and optional) for Yambo to compile correctly";\
    $(ECHO)  " make check-files         =  list all git untracked files and empty directories.";\
    $(ECHO)  "\n *** Cleaning ***" ;\
-   $(ECHO)  " The cleaning procedure of yambo is divided in several modules: bin int-libs driver Ydriver src ypp interfaces conf dep";\
+   $(ECHO)  " The cleaning procedure of yambo is divided in several modules: bin int-libs driver src ypp interfaces conf dep";\
    $(ECHO)  " Each of these module can be called by using";\
    $(ECHO)  " make clean what=<MODULE> \n";\
-   $(ECHO)  " make clean               =  remove all modules except int-libs, ext-libs, Ydriver, dependencies and configure files.";\
+   $(ECHO)  " make clean               =  remove all modules except int-libs, ext-libs, dependencies and configure files.";\
    $(ECHO)  " make clean_all           =  remove all modules. Complete cleaning.";\
    $(ECHO)  " make reset               =  clean + int-libs.";\
    $(ECHO)  " make gitclean            =  clean all git untracked files.";\

@@ -19,6 +19,11 @@ subroutine RT_output_and_IO_driver(what,E,k,OBSERVABLES)
  use real_time,      ONLY:eval_energy,eval_entropy,l_RT_update_Energies,l_NE_with_fields,NE_time, &
 &                         l_RT_induced_field,l_RT_impose_N_dN,l_RT_impose_E,RT_is_dynamically_dephased
  use D_lattice,      ONLY:Bose_Temp
+#if defined _ELPH
+ use drivers,        ONLY:l_rt_coh_phon
+ use real_time,      ONLY:RT_coh_phonons
+ use ELPH,           ONLY:elph_branches
+#endif
  !
  implicit none
  !
@@ -29,7 +34,7 @@ subroutine RT_output_and_IO_driver(what,E,k,OBSERVABLES)
  !
  ! Workspace
  !
- integer  :: i_ID
+ integer  :: i_ID,n(2)
  real(SP) :: NCarr(3),TFit(2),EfFit(2),Ener(5),Entr(3),TEntr(3),EnEntr(3),BGR(4)
  logical, external   :: RT_do_it
  !
@@ -44,6 +49,7 @@ subroutine RT_output_and_IO_driver(what,E,k,OBSERVABLES)
      call RT_output(what=trim(what)//" carr spin orbt")
      if (eval_energy)  call RT_output(what=trim(what)//" energy")
      if (eval_entropy) call RT_output(what=trim(what)//" therm")
+     if (l_rt_coh_phon) call RT_output(what=trim(what)//" coh_phonons")
      if (l_RT_update_Energies) call RT_output(what=trim(what)//" BGR")
      if (RT_EP_emit_life%active) call RT_output(trim(what)//' mean_EPlife')
      if (RT_EE_life%active     ) call RT_output(trim(what)//' mean_EElife')
@@ -95,6 +101,13 @@ subroutine RT_output_and_IO_driver(what,E,k,OBSERVABLES)
      !
      call RT_output('spin orbt',TIME=NE_time*AUT2FS)
      call RT_output('carr',VALUES=(/NCarr(:),TFit(:),EfFit(:)/),TIME=NE_time*AUT2FS)
+#if defined _ELPH
+     if (l_rt_coh_phon) then
+       n(1)=max(4,elph_branches(1))
+       n(2)=      elph_branches(2)
+       call RT_output('coh_phonons',VALUES=RT_coh_phonons(n(1):n(2),1),TIME=NE_time*AUT2FS)
+     endif
+#endif
      if (eval_energy)          call RT_output('energy',VALUES=Ener,                          TIME=NE_time*AUT2FS)
      if (eval_entropy)         call RT_output('therm ',VALUES=(/EnEntr(:),Entr(:),TEntr(:)/),TIME=NE_time*AUT2FS)
      if (l_RT_update_Energies) call RT_output('BGR',   VALUES=BGR,                           TIME=NE_time*AUT2FS)
