@@ -18,9 +18,6 @@ subroutine SET_defaults(INSTR,IND,OD,COM_DIR)
 &                     q_plus_G_direction,Q_Shift_Order,&
 &                     l_X_terminator,X_terminator_E,global_gauge,&
 &                     Chi_linalg_mode,X_use_lin_sys,X_use_gpu,X_DbGd_percentual
- use DIPOLES,    ONLY:use_covariant_approach,use_real_space_approach,&
-&                     Vnl_commutator_warning,use_shifted_grids_approach,use_g_space_approach,&
-&                     compute_P2_dipoles,compute_Spin_dipoles,compute_Orb_dipoles
  use QP_m,       ONLY:QP_dSc_steps,QP_n_W_freqs,QP_G_Zoom_treshold,&
 &                     QP_dSc_test,QP_solver,QP_G_damp,QP_dSc_delta,&
 &                     QP_cg_percent,QP_n_states,SC_E_threshold, &
@@ -36,8 +33,8 @@ subroutine SET_defaults(INSTR,IND,OD,COM_DIR)
  use pseudo,     ONLY:pp_n_l_times_proj_max,pp_kbv_dim
  use R_lattice,  ONLY:n_g_shells,ng_closed,bse_scattering,coll_scattering,&
 &                     Xk_grid_is_uniform,RIM_id_epsm1_reference,RIM_epsm1,&
-&                     RIM_anisotropy,RIM_ng,RIM_W_ng,rimw_type,RIM_n_rand_pts,nqibz,q0_def_norm,&
-&                     cutoff_presets,k_map,qindx_S_max_Go
+&                     RIM_anisotropy,RIM_ng,RIM_W_ng,RIM_n_rand_pts,nqibz,q0_def_norm,&
+&                     cutoff_presets,k_map,qindx_S_max_Go,RIMW_type
  use electrons,  ONLY:n_spin,n_sp_pol,n_spinor,filled_tresh,l_spin_orbit,n_spin_den,eval_magn,nel_cond
  use parallel_m, ONLY:ncpu,CPU_str_reset,CREATE_hosts_COMM
  use com,        ONLY:isec,depth,secnm,previous_secmode,of_name,n_ofs_defined,of_opened,of_unit,max_open_ofs,&
@@ -47,8 +44,8 @@ subroutine SET_defaults(INSTR,IND,OD,COM_DIR)
  use wave_func,  ONLY:wf_ng,wf_norm_test,wf_nb_io,wf_nb_io_groups,WF,WF_buffer,WF_buffered_IO
  use FFT_m,      ONLY:fft_dim_loaded,fft_size,fft_dim,fft_multiplier
  use IO_m,       ONLY:io_reset,max_io_units,serial_number,frag_WF
- use BS_solvers, ONLY:BSS_mode,BSS_n_freqs,BSS_er,BSS_dr,&
-&                     BSS_q0,Haydock_threshold,Haydock_iterIO,Haydock_iterMAX,BSS_uses_DbGd,BSS_Wd,&
+ use BS_solvers, ONLY:BSS_mode,BSS_n_freqs,BSS_er,BSS_dr,BSS_P_dir,BSS_E_dir,BSS_Q_dir,&
+&                     Haydock_threshold,Haydock_iterIO,Haydock_iterMAX,BSS_uses_DbGd,BSS_Wd,&
 &                     BSS_damp_reference,BSS_Vnl_included,BSS_uses_GreenF,BSS_inversion_mode,&
 &                     BSS_perturbative_width,K_INV_EPS,K_INV_PL,K_INV_PI_PH,BSS_desc
  use descriptors,ONLY:IO_desc_reset
@@ -71,7 +68,7 @@ subroutine SET_defaults(INSTR,IND,OD,COM_DIR)
 &                     EXCPH_deltaE_treshold,EXCPH_kthresh
 #endif
  use zeros,      ONLY:zero_norm,k_iku_zero,k_rlu_zero,G_iku_zero,G_mod_zero,zero_dfl
- use memory,     ONLY:MEMs,LARGE_MEMs,N_MEM_max,N_MEM_SAVE_max,MEM_element_init
+ use y_memory,   ONLY:MEMs,LARGE_MEMs,N_MEM_max,N_MEM_SAVE_max,MEM_element_init
  use xc_functionals,  ONLY:GS_xc_FUNCTIONAL,GS_xc_KIND,GS_exx_FRACTION,GS_exx_SCREENING 
  use BS,         ONLY:l_BS_anomalous_Hall
  use PHOTOLUM,   ONLY:PL_weights
@@ -120,7 +117,7 @@ subroutine SET_defaults(INSTR,IND,OD,COM_DIR)
 #endif
  use timing_m,    ONLY:timing_allocate,nclockx
  use openmp,      ONLY:OPENMP_initialize,OPENMP_update,master_thread,omp_is_off
- use cuda_m,      ONLY:cuda_setup,have_cuda
+ use gpu_m,       ONLY:gpu_setup,have_gpu
  !
  implicit none
  !
@@ -168,7 +165,7 @@ subroutine SET_defaults(INSTR,IND,OD,COM_DIR)
  !
  ! CUDA environment defs
  !
- call cuda_setup()
+ call gpu_setup()
  !
  ! Stack Size 
  !
@@ -353,18 +350,11 @@ subroutine SET_defaults(INSTR,IND,OD,COM_DIR)
  Chi_mode=' '
  Chi_linalg_mode="lin_sys"
  X_use_lin_sys=.FALSE.
- X_use_gpu=have_cuda
+ X_use_gpu=have_gpu
  current_iq=0
  X_DbGd_nkpts=0
  self_detect_E_range=.FALSE.
  X_FILL_UP_matrix_only=.FALSE.
- use_shifted_grids_approach = .FALSE.
- use_covariant_approach     = .FALSE.
- use_real_space_approach    = .FALSE.
- use_g_space_approach       = .TRUE.
- compute_P2_dipoles         = .FALSE.
- compute_Spin_dipoles       = .FALSE.
- compute_Orb_dipoles        = .FALSE.
  use_X_DbGd=.FALSE.
  X_DbGd_percentual=-1.
  eps_2_alpha=1._SP
@@ -372,7 +362,6 @@ subroutine SET_defaults(INSTR,IND,OD,COM_DIR)
  global_gauge='length'
  grid_paths=' '
  skip_cond_sum_rule=.FALSE.
- Vnl_commutator_warning=.FALSE.
  q_plus_G_direction=0._SP
  Q_Shift_Order=1
  l_X_terminator=.FALSE.
@@ -454,7 +443,9 @@ subroutine SET_defaults(INSTR,IND,OD,COM_DIR)
  BSS_inversion_mode='pf'
  BSS_er=(/0._SP,10._SP/)/HA2EV
  BSS_dr=0.1_SP/HA2EV
- BSS_q0=(/1._SP,0._SP,0._SP/)
+ BSS_E_dir=(/1._SP,0._SP,0._SP/)
+ BSS_P_dir=(/0._SP,1._SP,0._SP/)
+ BSS_Q_dir=(/0._SP,0._SP,1._SP/)
  BSS_uses_DbGd=.FALSE.
  BSS_damp_reference=0._SP
  BS_K_is_ALDA=.FALSE.

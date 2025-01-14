@@ -19,6 +19,7 @@
  io_MPA.o
  io_NL.o
  io_NLCC_pwscf.o
+ io_OSCLL.o
  io_PH.o
  io_QINDX.o
  io_QP_and_GF.o
@@ -44,6 +45,7 @@
  variables_DIPOLES.o
  variables_ELPH.o
  variables_NL.o
+ variables_Overlaps.o
  variables_RT_dynamic.o
  variables_RT_static.o
  variables_SC.o

@@ -12,10 +12,10 @@ module X_m
  use units,          ONLY:HA2EV
  use matrix,         ONLY:PAR_matrix
  use OUTPUT,         ONLY:N_MAX_columns
- use cuda_m,         ONLY:have_cuda
+ use gpu_m,          ONLY:have_gpu
  !
 #include <dev_defs.h>
-#include <memory.h>
+#include <y_memory.h>
  !
  ! Observables
  !
@@ -58,13 +58,10 @@ module X_m
  integer ,allocatable :: X_DbGd_nkpt_at_q(:)
  integer ,allocatable :: X_DbGd_nkpt_at_q_table(:,:,:)
  !
- ! workspace for X_irredux_residuals on GPUs
- !
- complex(SP), allocatable DEV_ATTR :: rhotw_save_d(:), rhotw_save2_d(:)
- !
  ! Absorption & Polarizability
  !
  integer                  :: N_BS_E_sorted=0
+ integer,     allocatable :: BS_E_sorted_indx(:,:,:)
  complex(SP), allocatable :: BS_E_sorted(:,:,:)
  complex(SP), allocatable :: Resp_ii(:,:)
  complex(SP), allocatable :: Resp_ij(:,:)
@@ -83,7 +80,7 @@ module X_m
  !
  character(schlen)        :: Chi_mode
  character(schlen)        :: Chi_linalg_mode
- logical                  :: X_use_gpu=have_cuda
+ logical                  :: X_use_gpu=have_gpu
  logical                  :: X_use_lin_sys=.false.
  real(SP),    allocatable :: X_poles(:)
  real(SP),    allocatable :: X_Ein_poles(:)
@@ -121,9 +118,11 @@ module X_m
  type(PAR_matrix), target      :: X_par_lower_triangle
  logical                       :: X_lower_triangle_matrix_in_use=.FALSE.
  integer                       :: X_rows(2) = 0
+ !DEV_ACC declare device_resident(X_rows)
  integer                       :: X_cols(2) = 0
- complex(SP),      allocatable :: X_mat(:,:,:)
- complex(SP),      allocatable DEV_ATTR :: X_mat_d(:,:,:)
+ !DEV_ACC declare device_resident(X_cols)
+ complex(SP), allocatable, target :: X_mat(:,:,:)
+ complex(SP), allocatable, target DEV_ATTR :: X_mat_d(:,:,:)
  !
  type X_t
    ! DS: is 1 Xo (see X_dielectric_matrix:109) or Xx (see io_X.F) ?
@@ -160,7 +159,7 @@ module X_m
    integer               :: N_messages
    character(schlen)     :: messages(N_MAX_columns)
  end type
- integer, parameter     :: N_X_obs=15
+ integer, parameter     :: N_X_obs=16
  type(X_obs_t)          :: X_obs(N_X_obs) 
  !
  interface
@@ -176,7 +175,7 @@ module X_m
      character(*), optional :: MORE
    end subroutine
    !
-   subroutine X_OUTPUT_driver(WHAT,keys,solver,IQ,IG,DESC,data)
+   subroutine X_OUTPUT_driver(WHAT,keys,solver,IQ,IG,DESC,data,indexes)
      use pars,           ONLY:SP
      use frequency,      ONLY:w_samp
      use descriptors,    ONLY:IO_desc
@@ -186,6 +185,7 @@ module X_m
      integer,      optional:: IQ,IG
      type(IO_desc),optional:: DESC
      real(SP),     optional:: data(:)
+     integer,      optional:: indexes(:)
    end subroutine
    !
    subroutine X_Double_Grid_setup(iq,k,k_FGbz,nTrans_percent,Radius)
@@ -197,11 +197,6 @@ module X_m
      real(SP),            optional :: nTrans_percent,Radius
    end subroutine
    !
-   subroutine X_ALLOC_elemental(WHAT,DIM)
-     character(*)      :: WHAT
-     integer, optional :: DIM(:)
-   end subroutine
-   !
    subroutine X_redux_build_kernel(KERNEL,Xo,Xo_rows,Xo_cols,compute_on_gpu,iq)
      use matrix,        ONLY:PAR_matrix
      implicit none
@@ -209,7 +204,7 @@ module X_m
      integer, intent(in)      :: Xo_rows(2),Xo_cols(2),iq
      logical, intent(in)      :: compute_on_gpu
    end subroutine
-   !
+   ! 
  end interface
  !
  contains

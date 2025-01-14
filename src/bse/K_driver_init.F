@@ -8,7 +8,7 @@
 subroutine K_driver_init(what,iq,Ken,Xk)
  !
  use R_lattice,    ONLY:bz_samp
- use electrons,    ONLY:levels,n_sp_pol,n_spinor
+ use electrons,    ONLY:levels,n_sp_pol,n_spin
  use parser_m,     ONLY:parser
  use parallel_m,   ONLY:PARALLEL_default_mode
  use stderr,       ONLY:STRING_match
@@ -19,7 +19,7 @@ subroutine K_driver_init(what,iq,Ken,Xk)
 &                       BS_perturbative_SOC,l_BS_magnons,l_BS_photolum,&
 &                       BS_cpl_K_exchange,BS_n_g_exch,BS_res_K_exchange,BS_K_coupling,BS_res_ares_n_mat,&
 &                       BS_n_eh_spaces,l_BS_ares_from_res,BS_bands,BS_K_anti_resonant
- use TDDFT,        ONLY:FXC_is_retarded,FXC_n_g_corr
+ use TDDFT,        ONLY:FXC_is_retarded,FXC_n_g_corr,l_Fxc_from_Vxc
  use drivers,      ONLY:l_col_cut,l_rpa_IP,l_alda_fxc,l_bs_fxc
  use D_lattice,    ONLY:i_time_rev,i_space_inv,l_3D
 #if defined _RT
@@ -39,7 +39,7 @@ subroutine K_driver_init(what,iq,Ken,Xk)
  !
  ! Work Space
  !
- logical :: l_flag,l_slepc_special
+ logical :: l_flag,l_slepc_special,l_Fxc_Libxc
  !
  ! Defaults
  !==========
@@ -49,7 +49,7 @@ subroutine K_driver_init(what,iq,Ken,Xk)
  ! default mode
  if(STRING_match(BSE_L_kind,"default")) BSE_L_kind="default-bar"
  !
- if (l_col_cut) then
+ if (l_col_cut.and.what=="init") then
    ! We are here in 0D, 1D or 2D
    ! The G=0 term included in L-full is representative
    ! of the portion of the line (2D) / plane (1D) / volume (0D)  around G=0
@@ -60,7 +60,7 @@ subroutine K_driver_init(what,iq,Ken,Xk)
      ! It is useless to compute the non analytical Lfull and better to
      ! directly remove the G=0 term
      call warning('Coulomb cutoff at q=0. Default/Suggested Lkind= bar')
-     if(STRING_match(BSE_L_kind,"default")) BSE_L_kind="default-bar"
+     if (STRING_match(BSE_L_kind,"default")) BSE_L_kind="default-bar"
    endif
    if (iq/=1) then
      ! We are here in 1D or 2D.
@@ -69,7 +69,7 @@ subroutine K_driver_init(what,iq,Ken,Xk)
      ! The above mentioned G=0 term is part of this effect.
      ! Here we assume it would be better to include it, to be double checked
      call warning('Coulomb cutoff at q>0. Default/Suggested Lkind= full')
-     if(STRING_match(BSE_L_kind,"default")) BSE_L_kind="default-full"
+     if (STRING_match(BSE_L_kind,"default")) BSE_L_kind="default-full"
      ! N.B.: One could compute the calculation without L-T slitting,
      ! by removing such full line (2D) / plane (1D). Not coded at the moment.
      ! I would define it as L="transverse"
@@ -146,7 +146,7 @@ subroutine K_driver_init(what,iq,Ken,Xk)
  if (iq/=1.and.i_time_rev==0.and.i_space_inv==0 )  l_BS_ares_from_res=.FALSE.
  if (l_BS_photolum)                                l_BS_ares_from_res=.FALSE.
  if (l_BS_magnons.and.n_sp_pol==2)                 l_BS_ares_from_res=.FALSE.
- ! The next line is to switch of section of the codes due to the calculation
+ ! The next line is to switch off sections of the code due to the calculation
  ! of the ARES part without checking the BSE_mode (see io_BS_PAR_init for example)
  if (trim(BSE_mode)=="resonant")                   l_BS_ares_from_res=.TRUE.
  !
@@ -165,6 +165,10 @@ subroutine K_driver_init(what,iq,Ken,Xk)
  &   call error('set Lkind = DEFAULT or BAR or FULL or TILDE')
  !
  BS_K_is_ALDA=l_alda_fxc
+ if (l_alda_fxc) then
+   call parser('FxcLibxc',l_Fxc_Libxc)
+   l_Fxc_from_Vxc=(n_spin==1).and..not.l_Fxc_Libxc
+ endif
 #if defined _CUDA
  if ( BS_K_is_alda.and. index(FXC_mode,"G-")>0 ) then
    call warning(" Tddft with G-integrals is not GPU ported. Fallback to R-integrals")

@@ -51,9 +51,8 @@ subroutine bz_samp_indexes(en,k,Xk,q)
 #if defined _ELPH
  use ELPH,           ONLY:elph_use_q_grid
 #endif
- use parallel_m
  !
-#include<memory.h>
+#include<y_memory.h>
  !
  type(levels),      intent(in)    :: en
  type(bz_samp),     intent(inout) :: k,Xk,q
@@ -100,7 +99,7 @@ subroutine bz_samp_indexes(en,k,Xk,q)
  !
  if(l_nl_optics) then
    X_scattering    =.FALSE.
-   sigma_scattering=.FALSE.
+ !   sigma_scattering=.FALSE. ! I need them for the LSEX
  endif
  !
 #endif

@@ -9,7 +9,7 @@ module electrons
  !
  use pars,  ONLY:SP,rZERO
  !
-#include<memory.h>
+#include<y_memory.h>
  !
  real(SP) :: nel
  real(SP) :: nel_cond ! Number of electrons promoted in conduction (quasi-fermi distribution)
