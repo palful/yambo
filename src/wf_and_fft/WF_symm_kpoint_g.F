@@ -167,11 +167,6 @@ subroutine WF_symm_kpoint_g_BZ(b_to_load,ik,i_sp_pol,isymm,ig0,isref,igref,WF)
     !call dev_memcpy(WF_p,WF_k_tmp)
     WF_p=WF_k_tmp
     !
-<<<<<<< HEAD
-    call dev_memcpy(WF_p,WF_k_tmp)
-    !
-=======
->>>>>>> yambo-remote/phys-exc-ph
     nullify(WF_p)
     !
   enddo
@@ -210,13 +205,6 @@ subroutine WF_symm_kpoint_g_ssop(b_to_load,ik,i_sp_pol,isymm,ig0,ssop,WF)
   !
   if(isymm==idt_index) return
   !
-<<<<<<< HEAD
-=======
-#if defined _GPU
-  call error("subroutine WF_symm_kpoint_g_ssop is not gpu ported")
-#endif
-  !
->>>>>>> yambo-remote/phys-exc-ph
   isymm_m1=sop_inv(isymm)
   !
   do ib=b_to_load(1),b_to_load(2)
