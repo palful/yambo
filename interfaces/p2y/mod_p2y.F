@@ -232,6 +232,7 @@ contains
      if (ierr/=0) call errore('qexsd_read_planewaves','fmt problem I',ABS(ierr))
      call qexsd_read_spin(lspinorb=l_spin_orbit, noncolin=noncolin_, ierr=ierr)
      if (ierr/=0) call errore('qexsd_read_spin','fmt problem',ABS(ierr))
+     lspinorb_ = l_spin_orbit
      !
    case default
      call errore("pw_dimensions"," Invalid dftdata fmt "//trim(dftdata_fmt),1)
