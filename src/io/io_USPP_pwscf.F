@@ -230,10 +230,10 @@ if (.not. any((/io_sec(ID,:)==2/))) goto 1
  var_id = var_id + 1
  !
  if (lspinorb) then
-   call def_variable_bulk(ID,"dvan_so",var_id,shape(dvan_so),DP)
+   call def_variable_bulk(ID,"dvan_so",var_id,[2, shape(dvan_so)],DP)
    call io_variable_bulk(ID,var_id,Z4=dvan_so)
    var_id = var_id + 1
-   call def_variable_bulk(ID,"qq_so",var_id,shape(qq_so),DP)
+   call def_variable_bulk(ID,"qq_so",var_id,[2, shape(dvan_so)],DP)
    call io_variable_bulk(ID,var_id,Z4=qq_so)
    var_id = var_id + 1
  else
