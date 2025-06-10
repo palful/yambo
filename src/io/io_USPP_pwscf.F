@@ -39,8 +39,8 @@ integer function io_VPRJ_pwscf(ID)
  ! Initialize variable counter
  var_id = 100
  !
- !io_VPRJ_pwscf=io_connect(desc="vproj_pp_pwscf",type=0,ID=ID)
  io_VPRJ_pwscf=io_connect(desc="vproj_pp_pwscf",type=0,ID=ID)
+ !io_VPRJ_pwscf=io_connect(desc="uspp_pp_pwscf",type=0,ID=ID)
  if (io_VPRJ_pwscf/=0) goto 1
  !
  io_VPRJ_pwscf=io_header(ID,IMPOSE_SN=.true.)
