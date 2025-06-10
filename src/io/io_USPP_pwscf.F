@@ -93,7 +93,7 @@ integer function io_VPRJ_pwscf(ID)
  var_id = var_id + 1
 
  !
- ! USP_YIOP param
+ ! USPP param
  call def_variable_bulk(ID,"lmaxq",var_id,(/1/),IP_YIO)
  call io_variable_bulk(ID,var_id,I0=lmaxq) 
  var_id = var_id + 1
@@ -108,7 +108,7 @@ integer function io_VPRJ_pwscf(ID)
  var_id = var_id + 1
 
  !
- ! USP_YIOP module
+ ! USPP module
  call def_variable_bulk(ID,"nkb",var_id,(/1/),IP_YIO)
  call io_variable_bulk(ID,var_id,I0=nkb)
  var_id = var_id + 1
