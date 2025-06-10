@@ -7,7 +7,7 @@
 !
 integer function io_VPRJ_pwscf(ID)
  !
- use pars,             ONLY: LP, SP, DP, IP_YIO, LP_YIO, CR_YIO
+ use pars,             ONLY: LP, SP_YIO, DP_YIO, IP_YIO, LP_YIO, CR_YIO
  use stderr,           ONLY: intc
  use IO_m,             ONLY: io_sec,read_is_on,write_is_on
  use IO_int,           ONLY: io_connect,io_disconnect, &
@@ -70,30 +70,30 @@ integer function io_VPRJ_pwscf(ID)
  call def_variable_bulk(ID,"npwx",var_id,(/1/),IP_YIO)
  call io_variable_bulk(ID,var_id,I0=npwx)
  var_id = var_id + 1
- call def_variable_bulk(ID,"omega",var_id,(/1/),DP)
+ call def_variable_bulk(ID,"omega",var_id,(/1/),DP_YIO)
  call io_variable_bulk(ID,var_id,D0=omega)
  var_id = var_id + 1
- call def_variable_bulk(ID,"alat",var_id,(/1/),DP)
+ call def_variable_bulk(ID,"alat",var_id,(/1/),DP_YIO)
  call io_variable_bulk(ID,var_id,D0=alat)
  var_id = var_id + 1
- call def_variable_bulk(ID,"tpiba",var_id,(/1/),DP)
+ call def_variable_bulk(ID,"tpiba",var_id,(/1/),DP_YIO)
  call io_variable_bulk(ID,var_id,D0=tpiba)
  var_id = var_id + 1
- call def_variable_bulk(ID,"gcutw",var_id,(/1/),DP)
+ call def_variable_bulk(ID,"gcutw",var_id,(/1/),DP_YIO)
  call io_variable_bulk(ID,var_id,D0=gcutw)
  var_id = var_id + 1
- call def_variable_bulk(ID,"ecutwfc",var_id,(/1/),DP)
+ call def_variable_bulk(ID,"ecutwfc",var_id,(/1/),DP_YIO)
  call io_variable_bulk(ID,var_id,D0=ecutwfc)
  var_id = var_id + 1
- call def_variable_bulk(ID,"gcutm",var_id,(/1/),DP)
+ call def_variable_bulk(ID,"gcutm",var_id,(/1/),DP_YIO)
  call io_variable_bulk(ID,var_id,D0=gcutm)
  var_id = var_id + 1
- call def_variable_bulk(ID,"ecutrho",var_id,(/1/),DP)
+ call def_variable_bulk(ID,"ecutrho",var_id,(/1/),DP_YIO)
  call io_variable_bulk(ID,var_id,D0=ecutrho)
  var_id = var_id + 1
 
  !
- ! USPP param
+ ! USP_YIOP param
  call def_variable_bulk(ID,"lmaxq",var_id,(/1/),IP_YIO)
  call io_variable_bulk(ID,var_id,I0=lmaxq) 
  var_id = var_id + 1
@@ -108,7 +108,7 @@ integer function io_VPRJ_pwscf(ID)
  var_id = var_id + 1
 
  !
- ! USPP module
+ ! USP_YIOP module
  call def_variable_bulk(ID,"nkb",var_id,(/1/),IP_YIO)
  call io_variable_bulk(ID,var_id,I0=nkb)
  var_id = var_id + 1
@@ -135,10 +135,10 @@ if (.not. any((/io_sec(ID,:)==2/))) goto 1
  call def_variable_bulk(ID,"ityp",var_id,shape(ityp),IP_YIO)
  call io_variable_bulk(ID,var_id,I1=ityp)
  var_id = var_id + 1
- call def_variable_bulk(ID,"tau",var_id,shape(tau),DP)
+ call def_variable_bulk(ID,"tau",var_id,shape(tau),DP_YIO)
  call io_variable_bulk(ID,var_id,D2=tau)
  var_id = var_id + 1
- call def_variable_bulk(ID,"zv",var_id,shape(zv),DP)
+ call def_variable_bulk(ID,"zv",var_id,shape(zv),DP_YIO)
  call io_variable_bulk(ID,var_id,D1=zv)
  var_id = var_id + 1
  !
@@ -183,7 +183,7 @@ if (.not. any((/io_sec(ID,:)==2/))) goto 1
      if (read_is_on(ID)) then
        allocate(upf(is)%jjj(upf(is)%nbeta))
      endif
-     call def_variable_bulk(ID,"jjj_"//trim(intc(is)),var_id,shape(upf(is)%jjj),DP)
+     call def_variable_bulk(ID,"jjj_"//trim(intc(is)),var_id,shape(upf(is)%jjj),DP_YIO)
      call io_variable_bulk(ID,var_id,D1=upf(is)%jjj)
      var_id = var_id + 1
    endif
@@ -213,10 +213,10 @@ if (.not. any((/io_sec(ID,:)==2/))) goto 1
  call io_variable_bulk(ID,var_id,I1=indv_ijkb0)
  var_id = var_id + 1
  !
- call def_variable_bulk(ID,"qq_at",var_id,shape(qq_at),DP)
+ call def_variable_bulk(ID,"qq_at",var_id,shape(qq_at),DP_YIO)
  call io_variable_bulk(ID,var_id,D3=qq_at)
  var_id = var_id + 1
- call def_variable_bulk(ID,"nhtoj",var_id,shape(nhtoj),DP)
+ call def_variable_bulk(ID,"nhtoj",var_id,shape(nhtoj),DP_YIO)
  call io_variable_bulk(ID,var_id,D2=nhtoj)
  var_id = var_id + 1
  call def_variable_bulk(ID,"lpx",var_id,shape(lpx),IP_YIO)
@@ -225,30 +225,30 @@ if (.not. any((/io_sec(ID,:)==2/))) goto 1
  call def_variable_bulk(ID,"lpl",var_id,shape(lpl),IP_YIO)
  call io_variable_bulk(ID,var_id,I3=lpl)
  var_id = var_id + 1
- call def_variable_bulk(ID,"ap",var_id,shape(ap),DP)
+ call def_variable_bulk(ID,"ap",var_id,shape(ap),DP_YIO)
  call io_variable_bulk(ID,var_id,D3=ap)
  var_id = var_id + 1
  !
  if (lspinorb) then
-   call def_variable_bulk(ID,"dvan_so",var_id,[2, shape(dvan_so)],DP)
+   call def_variable_bulk(ID,"dvan_so",var_id,[2, shape(dvan_so)],DP_YIO)
    call io_variable_bulk(ID,var_id,Z4=dvan_so)
    var_id = var_id + 1
-   call def_variable_bulk(ID,"qq_so",var_id,[2, shape(dvan_so)],DP)
+   call def_variable_bulk(ID,"qq_so",var_id,[2, shape(dvan_so)],DP_YIO)
    call io_variable_bulk(ID,var_id,Z4=qq_so)
    var_id = var_id + 1
  else
-   call def_variable_bulk(ID,"dvan",var_id,shape(dvan),DP)
+   call def_variable_bulk(ID,"dvan",var_id,shape(dvan),DP_YIO)
    call io_variable_bulk(ID,var_id,D3=dvan)
    var_id = var_id + 1
  endif
  !
  ! us
  if (lmaxq > 0 ) then
-   call def_variable_bulk(ID,"qrad",var_id,shape(qrad),DP)
+   call def_variable_bulk(ID,"qrad",var_id,shape(qrad),DP_YIO)
    call io_variable_bulk(ID,var_id,D4=qrad)
    var_id = var_id + 1
  endif
- call def_variable_bulk(ID,"tab",var_id,shape(tab),DP)
+ call def_variable_bulk(ID,"tab",var_id,shape(tab),DP_YIO)
  call io_variable_bulk(ID,var_id,D3=tab)
  var_id = var_id + 1
  !
