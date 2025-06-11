@@ -51,6 +51,8 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip,run_type)
  use gvect,          ONLY:ngm
  use stderr,         ONLY:intc,STRING_match
  use parser_m,       ONLY:parser
+ use noncollin_module, ONLY : noncolin
+ USE control_flags,    ONLY : gamma_only
 #if defined _SC
  use drivers,        ONLY:l_sc_run
 #endif
@@ -272,12 +274,28 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip,run_type)
                    
                    !write(*,*) i1,i2,deeq(i1,i2,ia_qe,i_sp_pol)
                    !
-                   if (l_spin_orbit) then
+                   ! NM : FIX ME these are GEMM calls and must be replaced.
+                   if (gamma_only) then
+                     !
+                     ! beta functions are real
+                     Hext_nl(ib1,ib2) = Hext_nl(ib1,ib2) + &
+                                              becp(ik,i_sp_pol)%r(ikb_i(ia)+i1,ib1)* &
+                                                         deeq(i1,i2,ia_qe,i_sp_pol) * &
+                                              becp(ik,i_sp_pol)%r(ikb_i(ia)+i2,ib2)
+                   elseif(noncolin) then
                      !
                      Hext_nl(ib1,ib2) = Hext_nl(ib1,ib2) + &
-                                       conjg(becp(ik,i_sp_pol)%k(ikb_i(ia)+i1,ib1)) * &
-                                                      deeq_nc(i1,i2,ia_qe,i_sp_pol) * &
-                                              becp(ik,i_sp_pol)%k(ikb_i(ia)+i2,ib2)
+                                       conjg(becp(ik,i_sp_pol)%nc(ikb_i(ia)+i1,1,ib1)) * &
+                                              (        deeq_nc(i1,i2,ia_qe,1) * &
+                                              becp(ik,i_sp_pol)%nc(ikb_i(ia)+i2,1,ib2) + &
+                                                      deeq_nc(i1,i2,ia_qe,2) * &
+                                              becp(ik,i_sp_pol)%nc(ikb_i(ia)+i2,2,ib2)) & 
+                                              + &
+                                       conjg(becp(ik,i_sp_pol)%nc(ikb_i(ia)+i1,2,ib1)) * &
+                                              (        deeq_nc(i1,i2,ia_qe,3) * &
+                                              becp(ik,i_sp_pol)%nc(ikb_i(ia)+i2,1,ib2) + &
+                                                      deeq_nc(i1,i2,ia_qe,4) * &
+                                              becp(ik,i_sp_pol)%nc(ikb_i(ia)+i2,2,ib2))
                      !
                    else
                      !
