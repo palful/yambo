@@ -21,7 +21,7 @@
 ! Software Foundation, Inc., 59 Temple Place - Suite 330,Boston,
 ! MA 02111-1307, USA or visit http://www.gnu.org/copyleft/gpl.txt.
 !
-subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
+subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip,run_type)
  !
  use pars,           ONLY:DP,SP,cZERO,schlen,lchlen
  use electrons,      ONLY:levels,n_sp_pol,n_spin,l_spin_orbit,spin_occ,n_spinor
@@ -33,7 +33,7 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
  use parallel_int,  ONLY:PP_redux_wait,PARALLEL_global_indexes,PARALLEL_WF_distribute,PARALLEL_WF_index
  use parallel_m,    ONLY:PAR_IND_Xk_ibz,PAR_IND_QP,&
 &                        PAR_IND_QP_ID,PAR_IND_Q_ibz,PAR_IND_G_b,&
-&                        PAR_IND_Q_ibz_ID,n_WF_bands_to_load
+&                        PAR_IND_Q_ibz_ID,n_WF_bands_to_load,myid
  use wave_func,      ONLY:WF
  use R_lattice,      ONLY:bz_samp,nkibz,qindx_S
  use D_lattice,      ONLY:DL_vol
@@ -51,6 +51,8 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
  use gvect,          ONLY:ngm
  use stderr,         ONLY:intc,STRING_match
  use parser_m,       ONLY:parser
+ use noncollin_module, ONLY : noncolin
+ USE control_flags,    ONLY : gamma_only
 #if defined _SC
  use drivers,        ONLY:l_sc_run
 #endif
@@ -65,6 +67,7 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
  type(levels)             :: E ! This is so far not needed by the subroutine 
  type(bz_samp)            :: Xk,k,q
  type(DIPOLE_t)           :: Dip
+ character(*),optional,intent(in) :: run_type
  !
  ! Work space
  !
@@ -108,29 +111,29 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
  !
  if (pp_is_uspp) call error("[PPs] USPP not implemented for bare Hamiltonian reconstruction")
  !
- ! Parallel indexes
- !=======================
- call PARALLEL_global_indexes(E,k,q,"Self_Energy")
- ! 
- ! WF distributed & load
- !=======================
-! l_distribute_wfs=.true.
-!#if defined _SC
-! l_distribute_wfs=.not.l_sc_run
-!#endif
+ ! WF distribution
+ !
+ ! For a G0W0 run, we need to reset WF distribution inherited from
+ ! exchange self-energy
+ if (run_type=='G0W0') call PARALLEL_WF_distribute(CLEAN_UP=.true.)
  !
  ! DS: if WFs are distributed, also becp needs to be distributed in memory
  ! See commented line in PP_compute_becp 
- ! This would require to add an "if( indixe(ik) ) cycle in the final loop
- ! of this subroutine, plus e final PP_redux
+ ! This would require to add an "if( index(ik) ) cycle in the final loop
+ ! of this subroutine, plus a final PP_redux
  l_distribute_wfs=.false.
+ !l_distribute_wfs=.true.
+!#if defined _SC
+ !l_distribute_wfs=.not.l_sc_run
+!#endif
  ! 
  if (l_distribute_wfs) then
-   ! Final states (k-q,np)...
+   !
+   call PARALLEL_global_indexes(E,k,q,"Self_Energy")
    call PARALLEL_WF_distribute(K_index=PAR_IND_Xk_ibz,B_index=PAR_IND_G_b,CLEAN_UP=.TRUE.)
-   ! Initial states (k,n \in QP)...
    call PARALLEL_WF_distribute(QP_index=PAR_IND_QP)
    call PARALLEL_WF_index( )
+   !
  endif
  !
  ! Read dipoles
@@ -158,7 +161,7 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
  !=====================================================================
  WFbands=(/H_ref_bands(1),max(H_ref_bands(2),maxval(E%nbm))/)
  !
- call WF_load(WF,QP_ng_Vxc,WF_Go_indx,WFbands,(/1,k%nibz/),title='-vloc')
+ call WF_load(WF,QP_ng_Vxc,WF_Go_indx,(/1,WFbands(2)/),(/1,k%nibz/),title='-vloc')
  !
  !****************************************************
  !
@@ -177,9 +180,13 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
  endif
 #endif
  !
+ !DV: I changed the call to the density avoiding to specify the bands otherwise
+ !the calculation of the density is not correct as only the bands included in
+ !the QPkrange are considered
+ !
  if(l_compute_rho) then
-   call el_density_and_current(E,Xk,rho=rho_n,bands=H_ref_bands)
-   if(n_spin>1) call el_magnetization(E,Xk,magn_n,bands=H_ref_bands)
+   call el_density_and_current(E,Xk,rho=rho_n)
+   if(n_spin>1) call el_magnetization(E,Xk,magn_n)
  endif
  !
  ! - V_hartree
@@ -215,6 +222,10 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
      !
      do ib1=H_ref_bands(1),H_ref_bands(2)
        do ib2=H_ref_bands(1),H_ref_bands(2)
+         !
+         ! In case of a standard G0W0 run, we only need
+         ! the diagonal part of the self-energy
+         if (run_type=='G0W0'.and.ib2/=ib1) cycle
          !
          !
          ! Calculate the local part of Hext ...
@@ -263,12 +274,28 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
                    
                    !write(*,*) i1,i2,deeq(i1,i2,ia_qe,i_sp_pol)
                    !
-                   if (l_spin_orbit) then
+                   ! NM : FIX ME these are GEMM calls and must be replaced.
+                   if (gamma_only) then
+                     !
+                     ! beta functions are real
+                     Hext_nl(ib1,ib2) = Hext_nl(ib1,ib2) + &
+                                              becp(ik,i_sp_pol)%r(ikb_i(ia)+i1,ib1)* &
+                                                         deeq(i1,i2,ia_qe,i_sp_pol) * &
+                                              becp(ik,i_sp_pol)%r(ikb_i(ia)+i2,ib2)
+                   elseif(noncolin) then
                      !
                      Hext_nl(ib1,ib2) = Hext_nl(ib1,ib2) + &
-                                       conjg(becp(ik,i_sp_pol)%k(ikb_i(ia)+i1,ib1)) * &
-                                                      deeq_nc(i1,i2,ia_qe,i_sp_pol) * &
-                                              becp(ik,i_sp_pol)%k(ikb_i(ia)+i2,ib2)
+                                       conjg(becp(ik,i_sp_pol)%nc(ikb_i(ia)+i1,1,ib1)) * &
+                                              (        deeq_nc(i1,i2,ia_qe,1) * &
+                                              becp(ik,i_sp_pol)%nc(ikb_i(ia)+i2,1,ib2) + &
+                                                      deeq_nc(i1,i2,ia_qe,2) * &
+                                              becp(ik,i_sp_pol)%nc(ikb_i(ia)+i2,2,ib2)) & 
+                                              + &
+                                       conjg(becp(ik,i_sp_pol)%nc(ikb_i(ia)+i1,2,ib1)) * &
+                                              (        deeq_nc(i1,i2,ia_qe,3) * &
+                                              becp(ik,i_sp_pol)%nc(ikb_i(ia)+i2,1,ib2) + &
+                                                      deeq_nc(i1,i2,ia_qe,4) * &
+                                              becp(ik,i_sp_pol)%nc(ikb_i(ia)+i2,2,ib2))
                      !
                    else
                      !
