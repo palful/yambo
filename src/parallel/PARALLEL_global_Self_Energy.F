@@ -35,9 +35,9 @@ subroutine PARALLEL_global_Self_Energy(E,Xk,q)
  use parallel_m,    ONLY:PAR_IND_Xk_ibz_ID,PAR_IND_Xk_bz_ID,PAR_IND_G_b_ID,PAR_IND_QP_ID,PAR_IND_Q_ibz_ID,PAR_IND_Q_bz_ID
 #if defined _SC
  use parallel_m,    ONLY:PAR_COM_Xk_ibz_INDEX
- use pseudo,        ONLY:l_use_p2_Vloc_becp 
 #endif
 #if defined _SC || defined _RT || defined _QED
+ use pseudo,        ONLY:l_use_p2_Vloc_becp 
  use drivers,       ONLY:l_elphoton_corr,l_life,l_real_time,l_sc_run
  use collision_ext, ONLY:COLL_bands,COH_collisions,HXC_collisions,P_collisions
  use parallel_m,    ONLY:COMM_copy
