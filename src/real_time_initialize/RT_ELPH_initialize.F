@@ -14,7 +14,7 @@ subroutine RT_ELPH_initialize(E,k,q)
  use R_lattice,      ONLY:bz_samp
  use IO_int,         ONLY:io_control
  use IO_m,           ONLY:OP_RD_CL,DUMP,REP
- use ELPH_intfcs,    ONLY:ELPH_alloc
+ use ALLOC,          ONLY:ELPH_alloc
  use ELPH,           ONLY:PH_freqs_sq,PH_W_debye,GKKP_ep_sq,GKKP_pe_sq,l_GKKP_expanded_DB_exists,elph_nQ,&
  &                        GKKP
  !

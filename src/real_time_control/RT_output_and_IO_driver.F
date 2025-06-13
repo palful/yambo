@@ -49,7 +49,9 @@ subroutine RT_output_and_IO_driver(what,E,k,OBSERVABLES)
      call RT_output(what=trim(what)//" carr spin orbt")
      if (eval_energy)  call RT_output(what=trim(what)//" energy")
      if (eval_entropy) call RT_output(what=trim(what)//" therm")
+#if defined _ELPH
      if (l_rt_coh_phon) call RT_output(what=trim(what)//" coh_phonons")
+#endif
      if (l_RT_update_Energies) call RT_output(what=trim(what)//" BGR")
      if (RT_EP_emit_life%active) call RT_output(trim(what)//' mean_EPlife')
      if (RT_EE_life%active     ) call RT_output(trim(what)//' mean_EElife')

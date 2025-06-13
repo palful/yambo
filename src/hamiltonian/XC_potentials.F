@@ -17,7 +17,7 @@ subroutine XC_potentials(POTENTIALS_string)
  use xc_functionals, ONLY:XC_LDA_X,XC_LDA_C_PZ,XC_EXCHANGE_CORRELATION,XC_EXCHANGE,&
 &                         GS_xc_KIND,GS_xc_FUNCTIONAL
  use collision_ext,  ONLY:COLLISIONS_have_HARTREE,COLLISIONS_HXC_local,COLLISIONS_HXC_MB,COLLISIONS_HXC_use_TDDFT,&
-&                         COLLISIONS_CV_only
+&                         COLLISIONS_CV_only,COLLISIONS_from_BSE
  use electrons,      ONLY:n_full_bands,n_met_bands
  use stderr,         ONLY:STRING_split,STRING_same
  !
@@ -61,6 +61,11 @@ subroutine XC_potentials(POTENTIALS_string)
     if (.not.index(POTENTIALS_string,'CPH')>0) POTENTIALS_string=trim(POTENTIALS_string)//" CPH"
    endif
    !
+   if (STRING_same(trim(potentials(i_c)),'KBSE')) then
+    COLLISIONS_from_BSE=.true.
+    if (.not.index(POTENTIALS_string,'KBSE')>0) POTENTIALS_string=trim(POTENTIALS_string)//" KBSE"
+  endif
+  !
    if (STRING_same(trim(potentials(i_c)),'IP')) then
      ! This means Hartree and V_xc are frozed: IP=KS-IP
      l_sc_ip=.true.
@@ -165,9 +170,11 @@ subroutine XC_potentials(POTENTIALS_string)
      call warning("NULL SC potential! ")
    else if (STRING_same(trim(potentials(i_c)),'CVONLY')) then
      call warning("Only CV components included ")
-    else if (STRING_same(trim(potentials(i_c)),'CPH')) then
+   else if (STRING_same(trim(potentials(i_c)),'CPH')) then
       call warning("Experimental: coherent phonons dynamics ")
-    else
+   else if (STRING_same(trim(potentials(i_c)),'KBSE')) then
+     call warning("Loading BSE kernel instead of computing collisions ")
+   else
      call error("Unknown SC potential! ")
    endif
    !

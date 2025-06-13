@@ -21,11 +21,11 @@
 ! Software Foundation, Inc., 59 Temple Place - Suite 330,Boston,
 ! MA 02111-1307, USA or visit http://www.gnu.org/copyleft/gpl.txt.
 !
-subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
+subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip,run_type)
  !
  use pars,           ONLY:DP,SP,cZERO,schlen,lchlen
  use electrons,      ONLY:levels,n_sp_pol,n_spin,l_spin_orbit,spin_occ,n_spinor
- use dipoles,        ONLY:DIPOLE_t,compute_P2_dipoles,P_square
+ use dipoles,        ONLY:DIPOLE_t,P_square
  use QP_m,           ONLY:QP_nk,QP_ng_Vxc
  use interfaces,     ONLY:el_density_and_current,el_magnetization,WF_load
  use hamiltonian,    ONLY:Hzero,H_ref_bands,WF_G_max,WF_Go_indx,Hext_nl,Hext_loc,&
@@ -33,7 +33,7 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
  use parallel_int,  ONLY:PP_redux_wait,PARALLEL_global_indexes,PARALLEL_WF_distribute,PARALLEL_WF_index
  use parallel_m,    ONLY:PAR_IND_Xk_ibz,PAR_IND_QP,&
 &                        PAR_IND_QP_ID,PAR_IND_Q_ibz,PAR_IND_G_b,&
-&                        PAR_IND_Q_ibz_ID,n_WF_bands_to_load
+&                        PAR_IND_Q_ibz_ID,n_WF_bands_to_load,myid
  use wave_func,      ONLY:WF
  use R_lattice,      ONLY:bz_samp,nkibz,qindx_S
  use D_lattice,      ONLY:DL_vol
@@ -49,8 +49,10 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
  use IO_int,         ONLY:io_control
  use IO_m,           ONLY:NONE,OP_RD_CL,REP,DUMP
  use gvect,          ONLY:ngm
- use stderr,         ONLY:intc
+ use stderr,         ONLY:intc,STRING_match
  use parser_m,       ONLY:parser
+ use noncollin_module, ONLY : noncolin
+ USE control_flags,    ONLY : gamma_only
 #if defined _SC
  use drivers,        ONLY:l_sc_run
 #endif
@@ -65,6 +67,7 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
  type(levels)             :: E ! This is so far not needed by the subroutine 
  type(bz_samp)            :: Xk,k,q
  type(DIPOLE_t)           :: Dip
+ character(*),optional,intent(in) :: run_type
  !
  ! Work space
  !
@@ -108,16 +111,41 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
  !
  if (pp_is_uspp) call error("[PPs] USPP not implemented for bare Hamiltonian reconstruction")
  !
+ ! WF distribution
+ !
+ ! For a G0W0 run, we need to reset WF distribution inherited from
+ ! exchange self-energy
+ if (run_type=='G0W0') call PARALLEL_WF_distribute(CLEAN_UP=.true.)
+ !
+ ! DS: if WFs are distributed, also becp needs to be distributed in memory
+ ! See commented line in PP_compute_becp 
+ ! This would require to add an "if( index(ik) ) cycle in the final loop
+ ! of this subroutine, plus a final PP_redux
+ l_distribute_wfs=.false.
+ !l_distribute_wfs=.true.
+!#if defined _SC
+ !l_distribute_wfs=.not.l_sc_run
+!#endif
+ ! 
+ if (l_distribute_wfs) then
+   !
+   call PARALLEL_global_indexes(E,k,q,"Self_Energy")
+   call PARALLEL_WF_distribute(K_index=PAR_IND_Xk_ibz,B_index=PAR_IND_G_b,CLEAN_UP=.TRUE.)
+   call PARALLEL_WF_distribute(QP_index=PAR_IND_QP)
+   call PARALLEL_WF_index( )
+   !
+ endif
+ !
  ! Read dipoles
  !
  ! (NB : In the final version this may be done in a different subroutine)
  ! (NB2: Incompatibility of DIP_par_scheme and DIPOLE_IO call in the present version
  !       is the reason why SE parall. over q is turned off in XCo_driver)
  !=====================================================================
- if (.not.compute_P2_dipoles) call error("[DIP] P_square not activated")
+ if (.not.STRING_match(Dip%computed,"p2")) call error("[DIP] P_square not activated")
  call DIPOLE_dimensions(E,Dip,H_ref_bands,(/0._SP,0._SP,0._SP/))
  !
- DIP_par_scheme="K"
+ DIP_par_scheme="HAM"
 #if defined _SC
  if(l_sc_run) DIP_par_scheme="SC"
 #endif
@@ -132,25 +160,8 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
  !             NB: quantities in real space [vlocal and VHartree] require loading all occupied states
  !=====================================================================
  WFbands=(/H_ref_bands(1),max(H_ref_bands(2),maxval(E%nbm))/)
- ! 
- ! WF distributed & load
- !=======================
  !
- l_distribute_wfs=.true.
-#if defined _SC
- l_distribute_wfs=.not.l_sc_run
-#endif
- if (l_distribute_wfs) then
-   call PARALLEL_global_indexes(E,k,q,"Self_Energy")
-   ! 
-   ! Final states (k-q,np)...
-   call PARALLEL_WF_distribute(K_index=PAR_IND_Xk_ibz,B_index=PAR_IND_G_b,CLEAN_UP=.TRUE.)
-   ! Initial states (k,n \in QP)...
-   call PARALLEL_WF_distribute(QP_index=PAR_IND_QP)
-   call PARALLEL_WF_index( )
- endif
- !
- call WF_load(WF,QP_ng_Vxc,WF_Go_indx,WFbands,(/1,k%nibz/),title='-vloc')
+ call WF_load(WF,QP_ng_Vxc,WF_Go_indx,(/1,WFbands(2)/),(/1,k%nibz/),title='-vloc')
  !
  !****************************************************
  !
@@ -169,9 +180,13 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
  endif
 #endif
  !
+ !DV: I changed the call to the density avoiding to specify the bands otherwise
+ !the calculation of the density is not correct as only the bands included in
+ !the QPkrange are considered
+ !
  if(l_compute_rho) then
-   call el_density_and_current(E,Xk,rho=rho_n,bands=H_ref_bands)
-   if(n_spin>1) call el_magnetization(E,Xk,magn_n,bands=H_ref_bands)
+   call el_density_and_current(E,Xk,rho=rho_n)
+   if(n_spin>1) call el_magnetization(E,Xk,magn_n)
  endif
  !
  ! - V_hartree
@@ -200,11 +215,17 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
      !write (*,*) "H_pseudo (ik,i_sp_pol) ",ik,i_sp_pol
      !write (*,*) "H_zero (ik,i_sp_pol) ",ik,i_sp_pol
      !
+     !if ( .not.PAR_IND_Xk_ibz%element_1D(ikibz) ) cycle
+     !
      Hext_loc=cZERO
      Hext_nl=cZERO
      !
      do ib1=H_ref_bands(1),H_ref_bands(2)
        do ib2=H_ref_bands(1),H_ref_bands(2)
+         !
+         ! In case of a standard G0W0 run, we only need
+         ! the diagonal part of the self-energy
+         if (run_type=='G0W0'.and.ib2/=ib1) cycle
          !
          !
          ! Calculate the local part of Hext ...
@@ -253,12 +274,28 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
                    
                    !write(*,*) i1,i2,deeq(i1,i2,ia_qe,i_sp_pol)
                    !
-                   if (l_spin_orbit) then
+                   ! NM : FIX ME these are GEMM calls and must be replaced.
+                   if (gamma_only) then
+                     !
+                     ! beta functions are real
+                     Hext_nl(ib1,ib2) = Hext_nl(ib1,ib2) + &
+                                              becp(ik,i_sp_pol)%r(ikb_i(ia)+i1,ib1)* &
+                                                         deeq(i1,i2,ia_qe,i_sp_pol) * &
+                                              becp(ik,i_sp_pol)%r(ikb_i(ia)+i2,ib2)
+                   elseif(noncolin) then
                      !
                      Hext_nl(ib1,ib2) = Hext_nl(ib1,ib2) + &
-                                       conjg(becp(ik,i_sp_pol)%k(ikb_i(ia)+i1,ib1)) * &
-                                                      deeq_nc(i1,i2,ia_qe,i_sp_pol) * &
-                                              becp(ik,i_sp_pol)%k(ikb_i(ia)+i2,ib2)
+                                       conjg(becp(ik,i_sp_pol)%nc(ikb_i(ia)+i1,1,ib1)) * &
+                                              (        deeq_nc(i1,i2,ia_qe,1) * &
+                                              becp(ik,i_sp_pol)%nc(ikb_i(ia)+i2,1,ib2) + &
+                                                      deeq_nc(i1,i2,ia_qe,2) * &
+                                              becp(ik,i_sp_pol)%nc(ikb_i(ia)+i2,2,ib2)) & 
+                                              + &
+                                       conjg(becp(ik,i_sp_pol)%nc(ikb_i(ia)+i1,2,ib1)) * &
+                                              (        deeq_nc(i1,i2,ia_qe,3) * &
+                                              becp(ik,i_sp_pol)%nc(ikb_i(ia)+i2,1,ib2) + &
+                                                      deeq_nc(i1,i2,ia_qe,4) * &
+                                              becp(ik,i_sp_pol)%nc(ikb_i(ia)+i2,2,ib2))
                      !
                    else
                      !
@@ -313,17 +350,10 @@ subroutine Bare_Hamiltonian_from_Scratch(E,Xk,k,q,Dip)
        enddo
      endif
      !
-#if defined _RT
-     if(l_real_time) then
-       if (.not.PAR_IND_WF_k%element_1D(ik)) cycle
-     endif
-#endif
-     !
    enddo
    !
  enddo
  !
- pp_is_uspp=.false. 
  call vloc_dealloc() ! Dealloc here since we couldn't do it in PP_uspp_init 
  YAMBO_FREE(vloc_full_r)
  !

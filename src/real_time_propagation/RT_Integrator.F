@@ -35,7 +35,7 @@ subroutine RT_Integrator(G_new,dG_new,dG_old,A_new,A_old,E,k,q)
  !                G(t),H[G(t)],dt/2        --> G1(t+dt/2)
  !                G(t),H[G1(t+dt/2)],dt/2  --> G2(t+dt/2)
  !                G(t),H[G2(t+dt/2)),dt    --> G3(t+dt)
- !                G(t),H[G3(t+dt)),dtcccc  --> G4(t+dt)
+ !                G(t),H[G3(t+dt)),dt      --> G4(t+dt)
  !                      G(t+dt)=G1(t+dt)/6+G2(t+dt)/3+G3(t+dt)/3+G2(t+dt)/6
  !
  !  In addition the IP oscillations and dephasing are "analytically integrated out"
@@ -47,10 +47,10 @@ subroutine RT_Integrator(G_new,dG_new,dG_old,A_new,A_old,E,k,q)
  use R_lattice,      ONLY:bz_samp
  use RT_control,     ONLY:TIME_adjust
  use real_time,      ONLY:Integrator_step,RT_nk,RT_bands,a_tableau,b_tableau,&
-&                         c_tableau,RWA_table,Integrator_nsteps,G_lesser_reference,&
+&                         c_tableau,RWA_table,Int_Ns=>Integrator_nsteps,G_lesser_reference,&
 &                         NE_time,NE_i_time,RT_step,RT_dyn_step
  use fields,         ONLY:gauge_field
- use electrons,      ONLY:levels
+ use electrons,      ONLY:levels,n_sp_pol
  use timing_m,       ONLY:timing
  use parallel_m,     ONLY:PAR_G_k_range
 #if defined _ELPH
@@ -63,9 +63,9 @@ subroutine RT_Integrator(G_new,dG_new,dG_old,A_new,A_old,E,k,q)
  !
  type(bz_samp),        intent(in) :: k,q
  type(levels),      intent(inout) :: E
- complex(SP),       intent(inout) :: G_new(RT_bands(1):RT_bands(2),RT_bands(1):RT_bands(2),PAR_G_k_range(1):PAR_G_k_range(2))
- complex(SP),          intent(in) :: dG_old(RT_bands(1):RT_bands(2),RT_bands(1):RT_bands(2),PAR_G_k_range(1):PAR_G_k_range(2))
- complex(SP),         intent(out) :: dG_new(RT_bands(1):RT_bands(2),RT_bands(1):RT_bands(2),PAR_G_k_range(1):PAR_G_k_range(2))
+ complex(SP), intent(inout) :: G_new(RT_bands(1):RT_bands(2),RT_bands(1):RT_bands(2),PAR_G_k_range(1):PAR_G_k_range(2),n_sp_pol)
+ complex(SP),    intent(in) :: dG_old(RT_bands(1):RT_bands(2),RT_bands(1):RT_bands(2),PAR_G_k_range(1):PAR_G_k_range(2),n_sp_pol)
+ complex(SP),   intent(out) :: dG_new(RT_bands(1):RT_bands(2),RT_bands(1):RT_bands(2),PAR_G_k_range(1):PAR_G_k_range(2),n_sp_pol)
  type(gauge_field),    intent(in) :: A_old
  type(gauge_field),   intent(out) :: A_new
  !
@@ -73,19 +73,18 @@ subroutine RT_Integrator(G_new,dG_new,dG_old,A_new,A_old,E,k,q)
  !
  integer     :: i_step
  real(SP)    :: delta_T1,delta_T2,delta_T3
- complex(SP) :: dG_tmp(RT_bands(1):RT_bands(2),RT_bands(1):RT_bands(2),PAR_G_k_range(1):PAR_G_k_range(2),Integrator_nsteps+1)
+ complex(SP) :: dG_tmp(RT_bands(1):RT_bands(2),RT_bands(1):RT_bands(2),PAR_G_k_range(1):PAR_G_k_range(2),n_sp_pol,Int_Ns+1)
  !
 #if defined _ELPH
- real(SP)          :: X_ph_tmp(elph_branches(1):elph_branches(2),2,Integrator_nsteps+1),&
+ real(SP)          :: X_ph_tmp(elph_branches(1):elph_branches(2),2,Int_Ns+1),&
  &                    X_ph_old(elph_branches(1):elph_branches(2),2)
 #endif
- type(gauge_field) :: A_tmp(Integrator_nsteps+1)
+ type(gauge_field) :: A_tmp(Int_Ns+1)
  !
  call timing('RT integrator',OPR='start')
  !
- !
- dG_tmp(:,:,:,1)=dG_old
- A_tmp(1)       =A_old
+ dG_tmp(:,:,:,:,1)=dG_old
+ A_tmp(1)         =A_old
  !
 #if defined _ELPH
  if(l_rt_coh_phon) then
@@ -96,7 +95,7 @@ subroutine RT_Integrator(G_new,dG_new,dG_old,A_new,A_old,E,k,q)
  !
  Integrator_step=1
  !
- do i_step=1,Integrator_nsteps
+ do i_step=1,Int_Ns
    !
    if (a_tableau(i_step)==0._SP) cycle 
    !  
@@ -106,7 +105,7 @@ subroutine RT_Integrator(G_new,dG_new,dG_old,A_new,A_old,E,k,q)
    !
    ! Evaluate @ T+dt1
    !
-   call RT_Glesser_evolve(E,k,dG_old,dG_tmp(:,:,:,i_step-1),dG_tmp(:,:,:,i_step),delta_T1,delta_T3)
+   call RT_Glesser_evolve(E,k,dG_old,dG_tmp(:,:,:,:,i_step-1),dG_tmp(:,:,:,:,i_step),delta_T1,delta_T3)
    !
    ! ... Update of logicals before the occupations update
    !
@@ -114,18 +113,18 @@ subroutine RT_Integrator(G_new,dG_new,dG_old,A_new,A_old,E,k,q)
    call RT_relaxation_logicals( )
 #endif
    !
-   call RT_occupations_eval(dG_tmp(:,:,:,i_step))
+   call RT_occupations_eval(dG_tmp(:,:,:,:,i_step))
    !
    ! Fields @ T+dt2
    !
-   call RT_propagate_fields(E,k,A_old,A_tmp(i_step),dG_tmp(:,:,:,i_step),NE_time,delta_T2)
+   call RT_propagate_fields(E,k,A_old,A_tmp(i_step),dG_tmp(:,:,:,:,i_step),NE_time,delta_T2)
    !
 #if defined _ELPH
    !
    ! Phonons @ T+dt2
    !
    if(l_rt_coh_phon) then
-     call RT_propagate_coherent_phonons(X_ph_old,X_ph_tmp(:,:,i_step),dG_tmp(:,:,:,i_step),delta_T2)
+     call RT_propagate_coherent_phonons(X_ph_old,X_ph_tmp(:,:,i_step),dG_tmp(:,:,:,:,i_step),delta_T2)
    endif
    !
 #endif
@@ -136,7 +135,7 @@ subroutine RT_Integrator(G_new,dG_new,dG_old,A_new,A_old,E,k,q)
    !
    ! Recalculate H and S using G(t+dt1) 
    !
-   call RT_Hamiltonian(dG_tmp(:,:,:,i_step),A_tmp(i_step),E,k)             ! The time specifications here is useless
+   call RT_Hamiltonian(dG_tmp(:,:,:,:,i_step),A_tmp(i_step),E,k)             ! The time specifications here is useless
    !
 #if defined _RT_SCATT
    call RT_relaxation(E,k,q,NE_time+delta_T1)                                 ! since nothing explicitely depends on time
@@ -148,8 +147,8 @@ subroutine RT_Integrator(G_new,dG_new,dG_old,A_new,A_old,E,k,q)
  !
  ! final step @ T+dt
  !
- call RT_Glesser_evolve(E,k,dG_old,dG_tmp(:,:,:,Integrator_nsteps),dG_tmp(:,:,:,Integrator_nsteps+1), &
-&                                               RT_dyn_step,RT_dyn_step*RWA_table(Integrator_nsteps+1))
+ call RT_Glesser_evolve(E,k,dG_old,dG_tmp(:,:,:,:,Int_Ns),dG_tmp(:,:,:,:,Int_Ns+1), &
+&                                        RT_dyn_step,RT_dyn_step*RWA_table(Int_Ns+1))
  !
  call RT_build_dG_new()
  !
@@ -163,7 +162,7 @@ subroutine RT_Integrator(G_new,dG_new,dG_old,A_new,A_old,E,k,q)
  !
  ! Fields @ T+dT
  !
- call RT_propagate_fields(E,k,A_old,A_tmp(Integrator_nsteps+1),dG_new,NE_time,RT_dyn_step)
+ call RT_propagate_fields(E,k,A_old,A_tmp(Int_Ns+1),dG_new,NE_time,RT_dyn_step)
  !
  call RT_build_A_new()
  !
@@ -173,7 +172,7 @@ subroutine RT_Integrator(G_new,dG_new,dG_old,A_new,A_old,E,k,q)
  !
  if(l_rt_coh_phon) then
    !
-   call RT_propagate_coherent_phonons(X_ph_old,X_ph_tmp(:,:,Integrator_nsteps+1),dG_new,RT_dyn_step)
+   call RT_propagate_coherent_phonons(X_ph_old,X_ph_tmp(:,:,Int_Ns+1),dG_new,RT_dyn_step)
    !
    call RT_build_coh_phonons_new()
    !
@@ -197,74 +196,78 @@ subroutine RT_Integrator(G_new,dG_new,dG_old,A_new,A_old,E,k,q)
      !
      use parallel_m,     ONLY:PAR_IND_Xk_ibz
      use real_time,      ONLY:RTibz
+     use electrons,      ONLY:n_sp_pol
      !
      ! Now I remove dG_old from dG_tmp and rescale to a_tableau
      !
-     integer  :: ik
+     integer  :: ik,i_sp
      !
+     do i_sp=1,n_sp_pol
      do ik=1,RT_nk
        !
        if (.not.PAR_IND_Xk_ibz%element_1D(RTibz%k_map(ik)) ) cycle
        !
-       do i_step=1,Integrator_nsteps
+       do i_step=1,Int_Ns
          if (a_tableau(i_step)==0._SP) cycle 
-         dG_tmp(:,:,ik,i_step)=(dG_tmp(:,:,ik,i_step)-dG_old(:,:,ik))/a_tableau(i_step)
+         dG_tmp(:,:,ik,i_sp,i_step)=(dG_tmp(:,:,ik,i_sp,i_step)-dG_old(:,:,ik,i_sp))/a_tableau(i_step)
        enddo
-       dG_tmp(:,:,ik,Integrator_nsteps+1)=dG_tmp(:,:,ik,Integrator_nsteps+1)-dG_old(:,:,ik)
+       dG_tmp(:,:,ik,i_sp,Int_Ns+1)=dG_tmp(:,:,ik,i_sp,Int_Ns+1)-dG_old(:,:,ik,i_sp)
        !
        ! Finally I average using b_tableau
        !
-       dG_new(:,:,ik)=dG_old(:,:,ik)
-       do i_step=1,Integrator_nsteps
-         dG_new(:,:,ik)=dG_new(:,:,ik)+dG_tmp(:,:,ik,i_step+1)*b_tableau(i_step)
+       dG_new(:,:,ik,i_sp)=dG_old(:,:,ik,i_sp)
+       do i_step=1,Int_Ns
+         dG_new(:,:,ik,i_sp)=dG_new(:,:,ik,i_sp)+dG_tmp(:,:,ik,i_sp,i_step+1)*b_tableau(i_step)
        enddo
        !
      enddo
+     enddo
      !
-     G_new=G_lesser_reference(:,:,PAR_G_k_range(1):PAR_G_k_range(2))+dG_new
+     G_new=G_lesser_reference(:,:,PAR_G_k_range(1):PAR_G_k_range(2),:)+dG_new
      !
    end subroutine RT_build_dG_new
+   !
+   subroutine RT_build_A_new()
+     !
+     do i_step=1,Int_Ns
+       if (a_tableau(i_step)==0._SP) cycle 
+       A_tmp(i_step)%vecpot    =(A_tmp(i_step)%vecpot    -A_old%vecpot)/a_tableau(i_step)
+       A_tmp(i_step)%vecpot_vel=(A_tmp(i_step)%vecpot_vel-A_old%vecpot_vel)/a_tableau(i_step)
+       A_tmp(i_step)%vecpot_acc=(A_tmp(i_step)%vecpot_acc-A_old%vecpot_acc)/a_tableau(i_step)
+     enddo
+     A_tmp(Int_Ns+1)%vecpot    =A_tmp(Int_Ns+1)%vecpot    -A_old%vecpot
+     A_tmp(Int_Ns+1)%vecpot_vel=A_tmp(Int_Ns+1)%vecpot_vel-A_old%vecpot_vel
+     A_tmp(Int_Ns+1)%vecpot_acc=A_tmp(Int_Ns+1)%vecpot_acc-A_old%vecpot_acc
+     !
+     ! Finally I average using b_tableau
+     !
+     A_new=A_old
+     do i_step=1,Int_Ns
+        A_new%vecpot    =A_new%vecpot    +A_tmp(i_step+1)%vecpot    *b_tableau(i_step)
+        A_new%vecpot_vel=A_new%vecpot_vel+A_tmp(i_step+1)%vecpot_vel*b_tableau(i_step)
+        A_new%vecpot_acc=A_new%vecpot_acc+A_tmp(i_step+1)%vecpot_acc*b_tableau(i_step)
+     enddo
+     !
+   end subroutine RT_build_A_new
    !
 #if defined _ELPH
    subroutine RT_build_coh_phonons_new()
      !
-     do i_step=1,Integrator_nsteps
+     do i_step=1,Int_Ns
        if (a_tableau(i_step)==0._SP) cycle 
        X_ph_tmp(:,:,i_step)=(X_ph_tmp(:,:,i_step)-X_ph_old)/a_tableau(i_step)
      enddo
-     X_ph_tmp(:,:,Integrator_nsteps+1)=X_ph_tmp(:,:,Integrator_nsteps+1)-X_ph_old
+     !
+     X_ph_tmp(:,:,Int_Ns+1)=X_ph_tmp(:,:,Int_Ns+1)-X_ph_old
      !
      ! Finally I average using b_tableau
      !
      RT_coh_phonons=X_ph_old
-     do i_step=1,Integrator_nsteps
-        RT_coh_phonons=RT_coh_phonons+X_ph_tmp(:,:,i_step+1)*b_tableau(i_step)
+     do i_step=1,Int_Ns
+       RT_coh_phonons  =RT_coh_phonons  +X_ph_tmp(:,:,i_step+1)    *b_tableau(i_step)
      enddo
      !
    end subroutine RT_build_coh_phonons_new
 #endif
-   !
-   subroutine RT_build_A_new()
-    !
-    do i_step=1,Integrator_nsteps
-      if (a_tableau(i_step)==0._SP) cycle 
-      A_tmp(i_step)%vecpot    =(A_tmp(i_step)%vecpot    -A_old%vecpot)/a_tableau(i_step)
-      A_tmp(i_step)%vecpot_vel=(A_tmp(i_step)%vecpot_vel-A_old%vecpot_vel)/a_tableau(i_step)
-      A_tmp(i_step)%vecpot_acc=(A_tmp(i_step)%vecpot_acc-A_old%vecpot_acc)/a_tableau(i_step)
-    enddo
-    A_tmp(Integrator_nsteps+1)%vecpot    =A_tmp(Integrator_nsteps+1)%vecpot    -A_old%vecpot
-    A_tmp(Integrator_nsteps+1)%vecpot_vel=A_tmp(Integrator_nsteps+1)%vecpot_vel-A_old%vecpot_vel
-    A_tmp(Integrator_nsteps+1)%vecpot_acc=A_tmp(Integrator_nsteps+1)%vecpot_acc-A_old%vecpot_acc
-    !
-    ! Finally I average using b_tableau
-    !
-    A_new=A_old
-    do i_step=1,Integrator_nsteps
-       A_new%vecpot    =A_new%vecpot    +A_tmp(i_step+1)%vecpot    *b_tableau(i_step)
-       A_new%vecpot_vel=A_new%vecpot_vel+A_tmp(i_step+1)%vecpot_vel*b_tableau(i_step)
-       A_new%vecpot_acc=A_new%vecpot_acc+A_tmp(i_step+1)%vecpot_acc*b_tableau(i_step)
-    enddo
-    !
-  end subroutine RT_build_A_new
   !
 end subroutine RT_Integrator

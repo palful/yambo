@@ -95,8 +95,8 @@ subroutine RT_occupations_and_levels_init(bands,E,k,q,k_FG,E_FG)
        k_FG%pt(ik_RT,:)       = kpt
        !
        ! .. occ
-       RT_el_occ%N_ref(ib,ik_RT) = f_occ_ref(1)
-       RT_ho_occ%N_ref(ib,ik_RT) = spin_occ-f_occ_ref(1)
+       RT_el_occ%N_ref(ib,ik_RT,:) = f_occ_ref(:)
+       RT_ho_occ%N_ref(ib,ik_RT,:) = spin_occ-f_occ_ref(:)
        !
        if (l_RT_relax_time_approx) then
          RT_RTA_E_occ_infty(ib,ik_FG)= Fermi_fnc(  Energy(1)-E%E_CBm(1)-RT_RTA_chem(1) ,RT_RTA_temp(1))*spin_occ
@@ -107,13 +107,13 @@ subroutine RT_occupations_and_levels_init(bands,E,k,q,k_FG,E_FG)
        if (.not.PAR_IND_Xk_ibz%element_1D(ik) ) cycle
 #endif
        !
-       RT_el_occ%dN(ib,ik_RT)   = f_occ(1)-f_occ_ref(1)
-       RT_el_occ%N(ib,ik_RT)    = f_occ(1)
-       RT_ho_occ%N(ib,ik_RT)    = spin_occ-f_occ(1)
+       RT_el_occ%dN(ib,ik_RT,:)   = f_occ(:)-f_occ_ref(:)
+       RT_el_occ%N(ib,ik_RT,:)    = f_occ(:)
+       RT_ho_occ%N(ib,ik_RT,:)    = spin_occ-f_occ(:)
        !
        if (.not.RT_is_dynamically_dephased) cycle
        !
-       RT_life_occ%dN(ib,ik_RT) = f_occ(1)-f_occ_ref(1)
+       RT_life_occ%dN(ib,ik_RT,:) = f_occ(:)-f_occ_ref(:)
        !
      enddo
    enddo
@@ -129,11 +129,11 @@ subroutine RT_occupations_and_levels_init(bands,E,k,q,k_FG,E_FG)
        if (l_GKKP_DB_exists         ) iqbz = iq
        ph_freq=abs(sqrt(PH_freqs_sq(iqbz,il)))
        if (PH_acoustic_branch(il)) then
-         RT_ph_occ%N_ref(il,iq) = PH_Q_modulus(iqbz)*bose_f(ph_freq)/spin_occ
+         RT_ph_occ%N_ref(il,iq,1) = PH_Q_modulus(iqbz)*bose_f(ph_freq)/spin_occ
        else
-         RT_ph_occ%N_ref(il,iq) = bose_f(ph_freq)/spin_occ
+         RT_ph_occ%N_ref(il,iq,1) = bose_f(ph_freq)/spin_occ
        endif
-       RT_ph_occ%N(il,iq)     = RT_ph_occ%N_ref(il,iq)
+       RT_ph_occ%N(il,iq,1)     = RT_ph_occ%N_ref(il,iq,1)
      enddo
    enddo
  endif

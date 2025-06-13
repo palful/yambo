@@ -30,9 +30,9 @@ subroutine p2y_pseudo(k)
  !
  type(bz_samp),    intent(in)  :: k      ! K/Q points
  !
- type(pw_struct), target :: struct
- type(pw_basis), target  :: basis_con    ! Needs to be target for wfc%basis later
- type(pw_atoms)          :: atoms
+ type(pw_struct),target :: struct
+ type(pw_basis), target :: basis_con    ! Needs to be target for wfc%basis later
+ type(pw_atoms)         :: atoms
  !
  ! Work space
  !
@@ -159,10 +159,10 @@ subroutine p2y_pseudo(k)
    allocate(vloc_yambo(ngm_,nsp_))
    call set_vloc_yambo()
    !
-   call io_control(ACTION=OP_WR_CL,COM=REP,SEC=(/1/),ID=ID_vloc)
+   call io_control(ACTION=OP_WR_CL,COM=REP,SEC=(/1,2/),ID=ID_vloc)
    io_err = io_VLOC_pwscf(ID_vloc)
    !
-   call io_control(ACTION=OP_WR_CL,COM=REP,SEC=(/1/),ID=ID)
+   call io_control(ACTION=OP_WR_CL,COM=REP,SEC=(/1,2/),ID=ID)
    io_err=io_VPRJ_pwscf(ID)
    !
    !call PP_uspp_free()
