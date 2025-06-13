@@ -67,7 +67,7 @@ subroutine k_map_nearest_by_dir(Xk,k_map)
  if(dshift>zero_dfl) then
    write(dump_ch,'(a,3f12.6)') " Shifted grid: ",k_shift
    call msg("sr",dump_ch)
-   call error(' Shifted grids not implemented yet in covariant dipoles ')
+   call warning('Yambo_nl works only with a single-shift k-point grid! ')
  else
    k_shift=0._SP
  endif
@@ -209,6 +209,15 @@ end subroutine k_find_smallest_g0
 
 subroutine check_shifts(Xk,WF_shifts)
  !
+ ! I want all k-points between 0 and 1 (same notation of QE with Berry)
+ ! therefore I check if they are outside of this range:
+ !
+ ! *) If a k-point is negative I assign a positive shift WF_shifts=1
+ !    to the WF to bring it in the correct BZ
+ ! *) If a k-point is larger than 1 I assign a negative shift WF_shifts=-1
+ !    to bring in the BZ
+ ! *) If a k-point is already between 0-1 I do not need to shift it
+ !
  use pars,                ONLY:SP
  use R_lattice,           ONLY:bz_samp
  !
@@ -229,7 +238,7 @@ subroutine check_shifts(Xk,WF_shifts)
      if(Xk%ptbz(ik,id)<-EPS) then
         WF_shifts(ik,id)=1
      elseif(Xk%ptbz(ik,id)>1._SP-EPS) then
-        WF_shifts(ik,id)=2
+        WF_shifts(ik,id)=-1
      endif
    enddo
  enddo

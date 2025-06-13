@@ -27,16 +27,16 @@ subroutine K_diago_driver(iq,W,X_static)
  use units,          ONLY:HA2EV
  use BS,             ONLY:BS_K_coupling,BS_H_dim,BS_K_dim,BS_perturbative_SOC,&
 &                         BS_res_ares_n_mat,l_BS_optics,l_BS_dichroism,l_BS_ares_from_res !,BS_Blocks_symmetrize_K,&
- use BS_solvers,     ONLY:io_BSS_diago,BSS_perturbative_width,BSS_mode, BSS_resize, &
+ use BS_solvers,     ONLY:io_BSS_diago,BSS_perturbative_width,BSS_mode,BSS_resize,BSS_n_eig_Input, &
 &                         BSS_write_eig_2_db,BSS_eh_W,BSS_n_eig,BS_E,BSS_slepc_pseudo_herm,write_bs_ev_par,&
-&                         BSS_ydiago_solver,BSS_first_eig,BSS_target_E,BSS_trange_E,BSS_er,BSS_slepc_precondition
+&                         BSS_ldiago_solver,BSS_first_eig,BSS_target_E,BSS_trange_E,BSS_er,BSS_slepc_precondition
  use X_m,            ONLY:X_t,X_OUTPUT_driver
  use electrons,      ONLY:n_sp_pol,n_spinor
  use frequency,      ONLY:w_samp
  use com,            ONLY:isec
  use LIVE_t,         ONLY:live_timing
  use linear_algebra, ONLY:DIAGO
- use interfaces,     ONLY:K_diago_response_functions,LINEAR_ALGEBRA_driver,YDIAGO_driver,&
+ use interfaces,     ONLY:K_diago_response_functions,LINEAR_ALGEBRA_driver,LDIAGO_driver,&
  &                        PL_diago_residual,K_diago_L_res,K_diago_R_res,&
  &                        K_diago_perturbative, K_stored_in_a_big_matrix
  use IO_int,         ONLY:io_control
@@ -71,12 +71,12 @@ subroutine K_diago_driver(iq,W,X_static)
  !
  ! Work Space
  !
- integer          :: i_BS_mat,Input_n_eig, BS_mat_dim, neigs_this_cpu, neig_shift, elpa_solver = 2
+ integer          :: i_BS_mat,BSS_n_eig_before_solver, BS_mat_dim, neigs_this_cpu, neig_shift, elpa_solver = 2
  logical          :: K_is_not_hermitian,l_diago,l_slepc,l_dip_more,l_target_erange,l_neig_input, &
- &                   l_ydiago,l_kerr_lft,l_kerr_rgt,l_abs_res
+ &                   l_ldiago,l_kerr_lft,l_kerr_rgt,l_abs_res
  character(1)     :: sec
  character(10)    :: Solver
- ! Ydiago varibles
+ ! Ldiago varibles
  integer, target  :: neigs_range(2)
  real(SP), target :: eigvals_range(2)
  !
@@ -127,16 +127,25 @@ subroutine K_diago_driver(iq,W,X_static)
  l_kerr_rgt=l_BS_kerr      .or.l_BS_dichroism
  !
  l_diago     = index(BSS_mode,'o')/=0 ! old diago
-#if defined _SLEPC && !defined _NL
  l_slepc     = index(BSS_mode,'s')/=0
+ l_ldiago    = index(BSS_mode,'d')/=0 
+ !
+#if defined _NL
+ if (l_ldiago) then
+   ! The issue is present if yambo was configured in single precision
+   ! If the coufingure was done in double precision, the issue is not present
+   ! However, at this stage, it is not possible to know how the user configured yambo
+   call warning("non-linear optics forces DP compilation and breaks Ldiago library interface in SP")
+   l_ldiago = .false.
+   l_diago  = .true.
+ endif
 #endif
- l_ydiago    = index(BSS_mode,'d')/=0 
  !
  if(l_diago) Solver="Diago"
 #if defined _SLEPC && !defined _NL
  if(l_slepc) Solver="Slepc"
 #endif
- if(l_ydiago) Solver="Ydiago" 
+ if(l_ldiago) Solver="Ldiago" 
  !
  call timing(trim(Solver)//' Solver',OPR='start')
  !
@@ -219,7 +228,7 @@ subroutine K_diago_driver(iq,W,X_static)
            ! 2.1. Nest matrix uses pseudo-hermitian structure of BSE, only for the coupling case
            call K_stored_in_a_nest_matrix(i_BS_mat,iq,slepc_mat)
          else
-           ! 2.2. Single PETSc matrix, for resonant case or coupling
+           ! 2.2. Single PETSc matrix, for resonant case or non-hermitian coupling
            call K_stored_in_a_slepc_matrix(i_BS_mat,iq,slepc_mat)
          endif
        endif        
@@ -230,7 +239,7 @@ subroutine K_diago_driver(iq,W,X_static)
    !
    ! Allocation (BS_E_real or BS_V)
    !===============================
-   if (.not. l_ydiago) call local_alloc("V")
+   if (.not. l_ldiago) call local_alloc("V")
    !
    if (io_err<0) then
      !
@@ -240,15 +249,15 @@ subroutine K_diago_driver(iq,W,X_static)
      !
      if (K_is_not_hermitian) then
        !
-       if (l_ydiago) then 
+       if (l_ldiago) then 
          ! BS_V_left are only referenced in non-hermitian case
          ! In coupling case, if the user requested n values,
          ! we compute the first min(n/2,BS_H_dim/2) positive and 
          ! min(n/2,BS_ham/2) negative eigvals and eigvectors, making it a total of min(n,BS_ham)
-         call YDIAGO_driver(i_BS_mat, BS_E, BS_V_right, neigs_this_cpu, neig_shift, &
+         call LDIAGO_driver(i_BS_mat, BS_E, BS_V_right, neigs_this_cpu, neig_shift, &
          &                   neigs_range=neigs_range, eigvals_range=eigvals_range,  &
          &                   BS_VL=BS_V_left,BS_overlap=BS_overlap,                 &
-         &                   solver_type=BSS_ydiago_solver, elpasolver=elpa_solver)
+         &                   solver_type=BSS_ldiago_solver, elpasolver=elpa_solver)
          BSS_n_eig = size(BS_E)
       endif
       !
@@ -269,10 +278,10 @@ subroutine K_diago_driver(iq,W,X_static)
        !
      else
        !
-       if (l_ydiago) then
-         call YDIAGO_driver(i_BS_mat, BS_E, BS_V_right, neigs_this_cpu, neig_shift, &
+       if (l_ldiago) then
+         call LDIAGO_driver(i_BS_mat, BS_E, BS_V_right, neigs_this_cpu, neig_shift, &
 &                           neigs_range=neigs_range, eigvals_range=eigvals_range,   &
-&                           solver_type=BSS_ydiago_solver, elpasolver=elpa_solver)
+&                           solver_type=BSS_ldiago_solver, elpasolver=elpa_solver)
          BSS_n_eig = size(BS_E)
        endif
        !
@@ -296,7 +305,7 @@ subroutine K_diago_driver(iq,W,X_static)
      !
      if (l_slepc) then
        ! BSS_n_eig could be lowered by MATRIX_slepc
-       if (Input_n_eig>BSS_n_eig) call K_slepc_resize_variables()
+       if (BSS_n_eig_before_solver>BSS_n_eig) call K_slepc_resize_variables()
        ! Destroy the matrix
        call MatDestroy(slepc_mat,ierr)
      endif
@@ -305,8 +314,9 @@ subroutine K_diago_driver(iq,W,X_static)
      !
      if (l_diago) call live_timing( )
      !
-     if (l_ydiago) then
-       if (Input_n_eig>BSS_n_eig) call K_ydiago_resize_variables()
+     if (l_ldiago) then
+       ! BSS_n_eig could be lowered by LDIAGO_driver
+       if (BSS_n_eig_before_solver>BSS_n_eig) call K_ldiago_resize_variables()
      endif
      !
      ! Compute residuals
@@ -341,8 +351,8 @@ subroutine K_diago_driver(iq,W,X_static)
      ! Left residuals needs to be computed only if the kernel is not hermitian
      if (K_is_not_hermitian) then
        !
-       ! In the ydiago solver, the BS_overlap is an identity matrix.
-       if (.not.l_ydiago) call K_diago_overlap_matrix(BS_V_left,BS_V_right,BS_overlap)
+       ! In the ldiago solver, the BS_overlap is an identity matrix.
+       if (.not.l_ldiago) call K_diago_overlap_matrix(BS_V_left,BS_V_right,BS_overlap)
        !
        ! Left residuals
        if(l_abs_res) then
@@ -372,7 +382,7 @@ subroutine K_diago_driver(iq,W,X_static)
      !
      ! DS: this also should be changed according to the general structure
      if(l_BS_photolum) then
-       if (l_ydiago) call error("PL not implemented in Ydiago solver")
+       if (l_ldiago) call error("PL not implemented in Ldiago solver")
        if (K_is_not_hermitian) then
          call PL_diago_residual(BS_V_left,BS_V_right,BS_R_PL,K_is_not_hermitian,BS_overlap)
        else
@@ -408,10 +418,10 @@ subroutine K_diago_driver(iq,W,X_static)
      call io_control(ACTION=OP_WR_CL,COM=REP,MODE=VERIFY,SEC=(/1,2,3/),ID=ID)
      io_err=io_BSS_diago(iq,i_BS_mat,ID,X_static,BS_E,BS_R_left_abs,BS_R_right_abs,BS_E_SOC_corr,&
      &     BS_R_left_magn,BS_R_right_magn,BS_R_left_kerr,BS_R_right_kerr,BS_R_right_dich,BS_R_PL,&
-     &                                                   BS_mat=BS_V_right,write_ev=.not.l_ydiago)
+     &                                                   BS_mat=BS_V_right,write_ev=.not.l_ldiago)
      !
      call PP_wait()
-     if (l_ydiago .and. BSS_write_eig_2_db) call write_bs_ev_par(iq, i_BS_mat, BS_V_right, BS_V_left)
+     if (l_ldiago .and. BSS_write_eig_2_db) call write_bs_ev_par(iq, i_BS_mat, BS_V_right, BS_V_left)
    endif
    !
    YAMBO_FREE(BS_E)
@@ -511,7 +521,7 @@ subroutine K_diago_driver(iq,W,X_static)
    end subroutine local_free
    !
    !
-   subroutine K_ydiago_resize_variables()
+   subroutine K_ldiago_resize_variables()
     !
     ! We need to realloc as sizes can change.
     if(allocated(BS_corrections)) call BSS_resize(BS_corrections)
@@ -527,7 +537,7 @@ subroutine K_diago_driver(iq,W,X_static)
     if(associated(BS_R_right_magn)) call BSS_resize(BS_R_right_magn)
     if(associated(BS_R_PL)        ) call BSS_resize(BS_R_PL)
     !
-   end subroutine K_ydiago_resize_variables
+   end subroutine K_ldiago_resize_variables
    !
 #if defined _SLEPC && !defined _NL
    !
@@ -586,30 +596,29 @@ subroutine K_diago_driver(iq,W,X_static)
        BSS_slepc_pseudo_herm = .false. 
        call warning('Preconditioning not supported in pseudo-hermitian case. Switching to non-hermitian diagonalization')
      endif
-
      !
-     if (l_ydiago) then
+     if (l_ldiago) then
        !
-       if (BSS_ydiago_solver/="s" .and. BSS_ydiago_solver/="e") then
-         call warning("Invalid ydiago solver. Switching to default")
+       if (BSS_ldiago_solver/="s" .and. BSS_ldiago_solver/="e") then
+         call warning("Invalid ldiago solver. Switching to default")
 #if defined _ELPA
-         BSS_ydiago_solver="e"
+         BSS_ldiago_solver="e"
 #else
-         BSS_ydiago_solver="s"
+         BSS_ldiago_solver="s"
 #endif
        endif
        !
 #if defined _GPU && defined _ELPA
-       if (BSS_ydiago_solver=="s") then
+       if (BSS_ldiago_solver=="s") then
          call warning("gpu ported code. Switching to Elpa solver")
-         BSS_ydiago_solver="e"
+         BSS_ldiago_solver="e"
        endif
 #endif
        !
 #if !defined _ELPA
-       if (BSS_ydiago_solver=="e") then
+       if (BSS_ldiago_solver=="e") then
          call warning("Elpa solver selected, but elpa not linked. Switching to scalapack")
-         BSS_ydiago_solver="s"
+         BSS_ldiago_solver="s"
        endif
 #endif
        !
@@ -618,33 +627,33 @@ subroutine K_diago_driver(iq,W,X_static)
        ! Here I double the number of n_eig to get correct allocations
        if (l_neig_input .and. K_is_not_hermitian) BSS_n_eig=BSS_n_eig*2
        !
-       if (l_target_erange .and. BSS_ydiago_solver=="e") then
+       if (l_target_erange .and. BSS_ldiago_solver=="e") then
 #if defined _GPU && defined _ELPA
          call warning(' energy range not compatible with elpa. Switching it off on gpu')
          l_target_erange=.false.
 #else
          call warning(' energy range not compatible with elpa. Switching to scalapack on cpu')
-         BSS_ydiago_solver="s"
+         BSS_ldiago_solver="s"
 #endif
        endif
        !
-       if (BSS_first_eig>1 .and. BSS_ydiago_solver=="e") then
+       if (BSS_first_eig>1 .and. BSS_ldiago_solver=="e") then
 #if defined _GPU && defined _ELPA
          call warning(' eigenvalues range not compatible with elpa. Switching it off on gpu')
          BSS_first_eig=1
 #else
          call warning(' eigenvalues range not compatible with elpa. Switching to scalapack on cpu')
-         BSS_ydiago_solver="s"
+         BSS_ldiago_solver="s"
 #endif
        endif
        !
-       if (l_neig_input .and. BSS_ydiago_solver=="e" .and. K_is_not_hermitian) then
+       if (l_neig_input .and. BSS_ldiago_solver=="e" .and. K_is_not_hermitian) then
 #if defined _GPU && defined _ELPA
          call warning(' Few eigenvalues not compatible with non hermitian elpa. Switching it off on gpu')
          l_neig_input=.false.
 #else
          call warning(' Few eigenvalues not compatible with non hermitian elpa. Switching to scalapack on cpu')
-         BSS_ydiago_solver="s"
+         BSS_ldiago_solver="s"
 #endif
        endif
        !
@@ -657,6 +666,8 @@ subroutine K_diago_driver(iq,W,X_static)
      ! Number of states to be computed
      !=================================
      !
+     BSS_n_eig=BSS_n_eig_Input
+     !
      if (l_slepc) then
        !
        if (BSS_n_eig<1) then
@@ -665,24 +676,19 @@ subroutine K_diago_driver(iq,W,X_static)
          call warning('N_eigen < 1. Calculating only 1% of the eigenvalues.')
        endif
        !
-       if (BSS_n_eig>BS_H_dim) then
-         call warning('N_eigen > BS_H_dim. Calculating 10% of the eigenvalues.')
-         BSS_n_eig = nint(BS_H_dim*0.1)
-       endif
-       !
-       if (BSS_n_eig>BS_K_dim(1) .and. BSS_slepc_pseudo_herm) then
-         call warning('N_eigen > BS_K_dim and pseudo-hermitian case. Calculating 10% of the eigenvalues.')
-         BSS_n_eig = nint(BS_K_dim(1)*0.1)
+       if (BSS_n_eig>BS_mat_dim) then
+         call warning('N_eigen > BS_mat_dim. Calculating 10% of the eigenvalues.')
+         BSS_n_eig = nint(BS_mat_dim*0.1)
        endif
        !
      endif
      !
      if(l_diago) BSS_n_eig = BS_mat_dim
      !
-     ! set a Ydiago defaults.
-     if(l_ydiago) then
+     ! set a Ldiago defaults.
+     if(l_ldiago) then
        !
-       ! In case of ydiago, BSS_n_eig will be overwritten after the solver is called 
+       ! In case of ldiago, BSS_n_eig will be overwritten after the solver is called 
        if( BSS_n_eig==0 ) BSS_n_eig = BS_mat_dim
        !
        neigs_range  = 0
@@ -702,7 +708,7 @@ subroutine K_diago_driver(iq,W,X_static)
          eigvals_range= BSS_trange_E
        ! The following is a good idea but it is the source of many fails in the
        ! test-suite. Commenting it for now
-       !else if (BSS_ydiago_solver=="s") then
+       !else if (BSS_ldiago_solver=="s") then
        !  ! with scalapack use the energy range needed by default
        !  neigs_range  = 0
        !  eigvals_range= BSS_er
@@ -710,13 +716,13 @@ subroutine K_diago_driver(iq,W,X_static)
        !
      endif
      !
-     Input_n_eig=BSS_n_eig
+     BSS_n_eig_before_solver=BSS_n_eig
      !
      ! For backward compatibitly I set  
      neig_shift = 0
      neigs_this_cpu = BSS_n_eig
      !
-     ! These will be changed by the YDIAGO_driver routine
+     ! These will be changed by the LDIAGO_driver routine
      ! each cpu contains eigen-vectors from [neig_shift + 1, neigs_this_cpu + neig_shift]
      !
    end subroutine BSS_n_eig_init

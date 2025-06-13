@@ -7,7 +7,7 @@ include ../../config/setup
 include ../archive/package.list
 #
 LIBNAME=libslepc.a
-LIBPATH=$(libs_prefix)/$(fc_kind)/${fc}/${yprecision}
+LIBPATH=$(libs_prefix)/$(fc_kind)/${fc}/${yprecision} #-${gpu_support}
 LIBRARY=$(LIBPATH)/lib/$(LIBNAME)
 #
 PACKAGE=$(pkgname_slepc)
@@ -16,7 +16,7 @@ TARBALL=$(tarball_slepc)
 include ../config/external_libs_commons.mk
 include ../config/external_libs_defs.mk
 #
-CONFFLAGS=--prefix="$(LIBPATH)"
+CONFFLAGS=--prefix=$(LIBPATH)
 #
 # MAIN target
 #

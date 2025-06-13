@@ -1,3 +1,4 @@
+ Apply_W_field.o
  Bare_Hamiltonian_as_E_ks_minus_Vxc.o
  Bare_Hamiltonian_from_Scratch.o
  Berry_polarization_NEQ.o

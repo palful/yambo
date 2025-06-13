@@ -37,9 +37,11 @@ scalapack-dl:
 	@LIB2DO="scalapack"; $(get_external_libraries)
 elpa-dl: 
 	@LIB2DO="elpa"; $(get_external_libraries)
+magma-dl: 
+	@LIB2DO="magma"; $(get_external_libraries)
 petsc-dl: 
 	@LIB2DO="petsc"; $(get_external_libraries)
 slepc-dl: 
 	@LIB2DO="slepc"; $(get_external_libraries)
-ydiago-dl:
-	@LIB2DO="ydiago"; $(get_external_libraries)
+ldiago-dl:
+	@LIB2DO="ldiago"; $(get_external_libraries)

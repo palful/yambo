@@ -140,3 +140,4 @@ autom4te.cache
 gfortran*.sh
 pgi*.sh
 nvidia*.sh
+git_nmd.sh
